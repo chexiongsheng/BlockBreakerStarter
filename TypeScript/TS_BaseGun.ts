@@ -10,6 +10,11 @@ class TS_BaseGun extends UE.Actor {
     PS_BulletImpact: UE.ParticleSystem;
 
     Constructor() {
+        
+    }
+
+    ReceiveBeginPlay(): void {
+        //console.log("==== BaseGun ReceiveBeginPlay");
         this.PS_BulletImpact = UE.ParticleSystem.Load("/Game/BlockBreaker/ParticleSystems/PS_BulletImpact");
     }
 

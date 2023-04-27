@@ -4,6 +4,9 @@ const UE = require("ue");
 const puerts_1 = require("puerts");
 class TS_BaseGun extends UE.Actor {
     Constructor() {
+    }
+    ReceiveBeginPlay() {
+        //console.log("==== BaseGun ReceiveBeginPlay");
         this.PS_BulletImpact = UE.ParticleSystem.Load("/Game/BlockBreaker/ParticleSystems/PS_BulletImpact");
     }
     //@no-blueprint

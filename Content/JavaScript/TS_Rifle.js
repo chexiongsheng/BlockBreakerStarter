@@ -7,10 +7,11 @@ class TS_Rifle extends TS_BaseGun_1.default {
         this.MaxBulletDistance = 5000;
         this.Damage = 2;
         this.FireRate = 0.1;
-        //this.RootComponent = this.GunMesh;
     }
     ReceiveBeginPlay() {
+        //console.log("==== Refile ReceiveBeginPlay");
         this.GunMesh.StaticMesh = UE.StaticMesh.Load("/Game/BlockBreaker/Meshes/SM_Rifle");
+        super.ReceiveBeginPlay();
     }
 }
 exports.default = TS_Rifle;
