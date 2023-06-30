@@ -42,6 +42,11 @@
 #pragma warning(pop)
 #endif
 
+#if USE_WASM3
+#include "WasmRuntime.h"
+#include "PuertsWasm/WasmJsFunctionParams.h"
+#endif
+
 #if V8_MAJOR_VERSION < 8 || defined(WITH_QUICKJS) || defined(WITH_NODEJS) || (WITH_EDITOR && !defined(FORCE_USE_STATIC_V8_LIB))
 #define WITH_BACKING_STORE_AUTO_FREE 0
 #else
@@ -223,7 +228,7 @@ public:
 
     void InvokeMixinMethod(UObject* ContextObject, UJSGeneratedFunction* Function, FFrame& Stack, void* RESULT_PARAM);
 
-    void TypeScriptInitial(UClass* Class, UObject* Object);
+    void TypeScriptInitial(UClass* Class, UObject* Object, const bool TypeScriptClassFound = false);
 
     void InvokeTsMethod(UObject* ContextObject, UFunction* Function, FFrame& Stack, void* RESULT_PARAM);
 
@@ -417,6 +422,24 @@ private:
 
     friend ObjectMerger;
 
+#if USE_WASM3
+    std::shared_ptr<WasmEnv> PuertsWasmEnv;
+    //在执行module.instance的时候,如果有指定memory,那么这个module对应会创建一个runtime
+    TArray<std::shared_ptr<WasmRuntime>> PuertsWasmRuntimeList;
+    TArray<WasmNormalLinkInfo*> PuertsWasmCachedLinkFunctionList;
+
+protected:
+    void Wasm_NewMemory(const v8::FunctionCallbackInfo<v8::Value>& Info);
+    void Wasm_MemoryGrowth(const v8::FunctionCallbackInfo<v8::Value>& Info);
+    void Wasm_MemoryBuffer(const v8::FunctionCallbackInfo<v8::Value>& Info);
+    void Wasm_TableGrowth(const v8::FunctionCallbackInfo<v8::Value>& Info);
+    void Wasm_TableSet(const v8::FunctionCallbackInfo<v8::Value>& Info);
+    void Wasm_TableLen(const v8::FunctionCallbackInfo<v8::Value>& Info);
+    void Wasm_Instance(const v8::FunctionCallbackInfo<v8::Value>& Info);
+    void Wasm_OverrideWebAssembly(const v8::FunctionCallbackInfo<v8::Value>& Info);
+
+#endif
+
 public:
 #if !defined(ENGINE_INDEPENDENT_JSENV)
     class TsDynamicInvokerImpl : public ITsDynamicInvoker
@@ -510,6 +533,10 @@ private:
     v8::Global<v8::Function> GetESMMain;
 
     v8::Global<v8::Function> ReloadJs;
+
+#if !PUERTS_FORCE_CPP_UFUNCTION
+    v8::Global<v8::Function> MergePrototype;
+#endif
 
     TMap<UStruct*, FTemplateInfo> TypeToTemplateInfoMap;
 

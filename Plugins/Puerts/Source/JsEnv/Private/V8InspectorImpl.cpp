@@ -136,7 +136,11 @@ void V8InspectorChannelImpl::sendNotification(std::unique_ptr<v8_inspector::Stri
 
 class V8InspectorClientImpl : public V8Inspector,
 #if USING_UE
+#if ENGINE_MAJOR_VERSION >= 5
+                              public FTSTickerObjectBase,
+#else
                               public FTickerObjectBase,
+#endif
 #endif
                               public v8_inspector::V8InspectorClient
 {
@@ -226,10 +230,9 @@ void ReportException(const websocketpp::exception& Exception, const TCHAR* JobIn
     char* str = new char[len + 1];
     memset(str, 0, len + 1);
     WideCharToMultiByte(CP_UTF8, 0, wstr, -1, str, len, NULL, NULL);
-    if (wstr)
-        delete[] wstr;
+    delete[] wstr;
     UE_LOG(LogV8Inspector, Warning, TEXT("%s, errno:%d, message:%s"), JobInfo, Exception.code().value(), UTF8_TO_TCHAR(str));
-    delete str;
+    delete[] str;
 #else
     UE_LOG(LogV8Inspector, Warning, TEXT("%s, errno:%d, message:%s"), JobInfo, Exception.code().value(),
         ANSI_TO_TCHAR(Exception.what()));
@@ -246,7 +249,11 @@ void MicroTasksRunnerFunction(const v8::FunctionCallbackInfo<v8::Value>& Info)
 
 V8InspectorClientImpl::V8InspectorClientImpl(int32_t InPort, v8::Local<v8::Context> InContext)
 #if USING_UE
+#if ENGINE_MAJOR_VERSION >= 5
+    : FTSTickerObjectBase(0.001f)
+#else
     : FTickerObjectBase(0.001f)
+#endif
 #endif
 {
     Isolate = InContext->GetIsolate();

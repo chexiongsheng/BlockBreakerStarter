@@ -555,6 +555,40 @@ public:
     }
 };
 
+#if ENGINE_MINOR_VERSION >= 25 || ENGINE_MAJOR_VERSION > 4
+class FFieldPathPropertyTranslator : public FPropertyWithDestructorReflection
+{
+public:
+    explicit FFieldPathPropertyTranslator(PropertyMacro* InProperty) : FPropertyWithDestructorReflection(InProperty)
+    {
+    }
+
+    v8::Local<v8::Value> UEToJs(
+        v8::Isolate* Isolate, v8::Local<v8::Context>& Context, const void* ValuePtr, bool PassByPointer) const override
+    {
+        return FV8Utils::ToV8String(Isolate, FieldPathProperty->GetPropertyValuePtr(ValuePtr)->ToString());
+    }
+
+    bool JsToUE(v8::Isolate* Isolate, v8::Local<v8::Context>& Context, const v8::Local<v8::Value>& Value, void* ValuePtr,
+        bool DeepCopy) const override
+    {
+        auto Path = FV8Utils::ToFString(Isolate, Value);
+        FFieldPath FieldPath;
+        FieldPath.Generate(*Path);
+
+        if (!FieldPath.GetTyped(FieldPathProperty->PropertyClass))
+        {
+            FV8Utils::ThrowException(Isolate, FString::Printf(TEXT("invalid FieldPath: %s"), *Path));
+            return false;
+        }
+
+        FieldPathProperty->SetPropertyValue(ValuePtr, FieldPath);
+
+        return true;
+    }
+};
+#endif
+
 #ifdef GetObject
 #undef GetObject
 #endif
@@ -728,6 +762,71 @@ public:
         }
 
         StructProperty->CopySingleValue(ValuePtr, &ArrayBuffer);
+
+        return true;
+    }
+};
+
+class FArrayBufferValuePropertyTranslator : public FPropertyWithDestructorReflection
+{
+public:
+    explicit FArrayBufferValuePropertyTranslator(PropertyMacro* InProperty) : FPropertyWithDestructorReflection(InProperty)
+    {
+    }
+
+    v8::Local<v8::Value> UEToJs(
+        v8::Isolate* Isolate, v8::Local<v8::Context>& Context, const void* ValuePtr, bool PassByPointer) const override
+    {
+        void* Ptr = const_cast<void*>(ValuePtr);
+
+        FArrayBufferValue* ArrayBuffer = static_cast<FArrayBufferValue*>(Ptr);
+        v8::Local<v8::ArrayBuffer> Ab = v8::ArrayBuffer::New(Isolate, ArrayBuffer->Data.Num());
+#if defined(HAS_ARRAYBUFFER_NEW_WITHOUT_STL)
+        void* Buff = static_cast<char*>(v8::ArrayBuffer_Get_Data(Ab));
+#else
+        void* Buff = Ab->GetContents().Data();
+#endif
+        ::memcpy(Buff, ArrayBuffer->Data.GetData(), ArrayBuffer->Data.Num());
+        return Ab;
+    }
+
+    bool JsToUE(v8::Isolate* Isolate, v8::Local<v8::Context>& Context, const v8::Local<v8::Value>& Value, void* ValuePtr,
+        bool DeepCopy) const override
+    {
+        FArrayBufferValue* ArrayBuffer = static_cast<FArrayBufferValue*>(ValuePtr);
+        size_t Len = 0;
+        char* Data = nullptr;
+        if (Value->IsArrayBufferView())
+        {
+            v8::Local<v8::ArrayBufferView> BuffView = Value.As<v8::ArrayBufferView>();
+            auto Ab = BuffView->Buffer();
+#if defined(HAS_ARRAYBUFFER_NEW_WITHOUT_STL)
+            Data = static_cast<char*>(v8::ArrayBuffer_Get_Data(Ab)) + BuffView->ByteOffset();
+#else
+            Data = static_cast<char*>(Ab->GetContents().Data()) + BuffView->ByteOffset();
+#endif
+            Len = BuffView->ByteLength();
+        }
+        else if (Value->IsArrayBuffer())
+        {
+            auto Ab = v8::Local<v8::ArrayBuffer>::Cast(Value);
+#if defined(HAS_ARRAYBUFFER_NEW_WITHOUT_STL)
+            Data = static_cast<char*>(v8::ArrayBuffer_Get_Data(Ab, Len));
+#else
+            Data = static_cast<char*>(Ab->GetContents().Data());
+            Len = Ab->GetContents().ByteLength();
+#endif
+        }
+
+        if (Len > 0 && Data)
+        {
+            ArrayBuffer->Data.AddUninitialized(Len);
+            ::memcpy(ArrayBuffer->Data.GetData(), Data, Len);
+        }
+        else
+        {
+            ArrayBuffer->Data.Reset();
+        }
 
         return true;
     }
@@ -1216,6 +1315,10 @@ struct PropertyTranslatorCreator
             {
                 return Creator<FArrayBufferPropertyTranslator>::Do(InProperty, IgnoreOut, Ptr);
             }
+            else if (StructProperty->Struct == FArrayBufferValue::StaticStruct())
+            {
+                return Creator<FArrayBufferValuePropertyTranslator>::Do(InProperty, IgnoreOut, Ptr);
+            }
             else if (StructProperty->Struct == FJsObject::StaticStruct())
             {
                 return Creator<FJsObjectPropertyTranslator>::Do(InProperty, IgnoreOut, Ptr);
@@ -1254,6 +1357,12 @@ struct PropertyTranslatorCreator
         {
             return Creator<DoNothingPropertyTranslator>::Do(InProperty, IgnoreOut, Ptr);    //统一在别的地方处理
         }
+#if ENGINE_MINOR_VERSION >= 25 || ENGINE_MAJOR_VERSION > 4
+        else if (InProperty->IsA<FFieldPathProperty>())
+        {
+            return Creator<FFieldPathPropertyTranslator>::Do(InProperty, IgnoreOut, Ptr);
+        }
+#endif
         else
         {
             return Creator<DoNothingPropertyTranslator>::Do(InProperty, IgnoreOut,

@@ -372,7 +372,7 @@ private:
 
     template <typename T>
     struct ReturnConverter<T,
-        typename std::enable_if<(ReturnByPointer || std::is_reference<T>::value && !std::is_const<T>::value) &&
+        typename std::enable_if<(ReturnByPointer || (std::is_reference<T>::value && !std::is_const<T>::value)) &&
                                 (is_objecttype<typename std::decay<T>::type>::value ||
                                     is_uetype<typename std::decay<T>::type>::value)>::type>
     {
@@ -996,10 +996,16 @@ private:
         auto context = GetContext(info);
 
         if (GetArgsLen(info) != ArgsLength)
+        {
+            ThrowException(info, "invalid parameter length");
             return nullptr;
+        }
 
         if (!internal::ArgumentChecker<0, ArgsLength, Args...>::Check(info, context))
+        {
+            ThrowException(info, "invalid parameter");
             return nullptr;
+        }
 
         return new T(internal::TypeConverter<Args>::toCpp(context, GetArg(info, index))...);
     }

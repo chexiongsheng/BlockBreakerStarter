@@ -106,6 +106,9 @@ var global = global || (function () { return this; }());
             }
             
             let [fullPath, debugPath] = moduleInfo;
+            if(debugPath.startsWith("Pak: ")){
+                debugPath = fullPath
+            }
             
             let key = fullPath;
             if ((key in moduleCache) && !forceReload) {
@@ -124,9 +127,21 @@ var global = global || (function () { return this; }());
                 
                 if (fullPath.endsWith("package.json")) {
                     isESM = packageConfigure.type === "module"
+                    let url = packageConfigure.main || "index.js";
+                    if (isESM) {
+                        let packageExports = packageConfigure.exports && packageConfigure.exports["."];
+                        if (packageExports)
+                            url =
+                                (packageExports["default"] && packageExports["default"]["require"]) ||
+                                (packageExports["require"] && packageExports["require"]["default"]) ||
+                                packageExports["require"];                        
+                        if (!url) {
+                            throw new Error("can not require a esm in cjs module!");
+                        }
+                    }
                     let fullDirInJs = (fullPath.indexOf('/') != -1) ? fullPath.substring(0, fullPath.lastIndexOf("/")) : fullPath.substring(0, fullPath.lastIndexOf("\\")).replace(/\\/g, '\\\\');
                     let tmpRequire = genRequire(fullDirInJs, isESM);
-                    let r = tmpRequire(packageConfigure.main || "index.js");
+                    let r = tmpRequire(url);
                     tmpModuleStorage[sid] = undefined;
                     m.exports = r;
                 } else {

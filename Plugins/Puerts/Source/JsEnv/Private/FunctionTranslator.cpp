@@ -16,7 +16,11 @@ static TMap<FName, TMap<FName, TMap<FName, FString>>> ParamDefaultMetas;
 static TMap<FName, TMap<FName, FString>>* PC = nullptr;
 static TMap<FName, FString>* PF = nullptr;
 
+#if ENGINE_MAJOR_VERSION >= 5 && ENGINE_MINOR_VERSION >= 2
+UE_DISABLE_OPTIMIZATION
+#else
 PRAGMA_DISABLE_OPTIMIZATION
+#endif
 static void ParamDefaultMetasInit()
 {
     // PC = &ParamDefaultMetas.Add(TEXT("MainObject"));
@@ -27,7 +31,11 @@ static void ParamDefaultMetasInit()
 #include "InitParamDefaultMetas.inl"
     return;
 }
+#if ENGINE_MAJOR_VERSION >= 5 && ENGINE_MINOR_VERSION >= 2
+UE_ENABLE_OPTIMIZATION
+#else
 PRAGMA_ENABLE_OPTIMIZATION
+#endif
 
 std::once_flag ParamDefaultMetasInitFlag;
 
@@ -484,7 +492,9 @@ void FFunctionTranslator::CallJs(v8::Isolate* Isolate, v8::Local<v8::Context>& C
 
     FOutParmRec* NewOutParms = nullptr;
 
-    if (Stack.Node != Stack.CurrentNativeFunction)
+    const bool CallByBP = Stack.Node != Stack.CurrentNativeFunction;
+
+    if (CallByBP)
     {
 #if defined(USE_GLOBAL_PARAMS_BUFFER)
         void* Params = Buffer;
@@ -559,6 +569,19 @@ void FFunctionTranslator::CallJs(v8::Isolate* Isolate, v8::Local<v8::Context>& C
     FMemory::Memset(Args, 0, sizeof(v8::Local<v8::Value>) * Arguments.size());
     for (int i = 0; i < Arguments.size(); ++i)
     {
+        const auto Property = Arguments[i]->Property;
+        if (!CallByBP && (Property->PropertyFlags & CPF_OutParm) && Stack.OutParms)    // may be fast call
+        {
+            FOutParmRec* Out = Stack.OutParms;
+
+            while (Out->Property != Property)
+            {
+                Out = Out->NextOutParm;
+                checkSlow(Out);
+            }
+            Args[i] = Arguments[i]->UEToJs(Isolate, Context, Out->PropAddr, false);
+            continue;
+        }
         Args[i] = Arguments[i]->UEToJsInContainer(Isolate, Context, Params, false);
     }
 

@@ -7,6 +7,7 @@
  */
 
 #include "TypeScriptGeneratedClass.h"
+#include "Runtime/Launch/Resources/Version.h"
 #include "PropertyMacros.h"
 #include "JSGeneratedFunction.h"
 #include "JSLogger.h"
@@ -20,6 +21,23 @@ DEFINE_FUNCTION(UTypeScriptGeneratedClass::execCallJS)
     UTypeScriptGeneratedClass* Class = Cast<UTypeScriptGeneratedClass>(Func->GetOuter());
     if (Class)
     {
+#if WITH_EDITOR
+        if (Context)
+        {
+            UTypeScriptGeneratedClass* ClassMayNeedReBind = nullptr;
+            auto TempClass = Context->GetClass();
+
+            while (TempClass && (TempClass != Class) && (!ClassMayNeedReBind || !ClassMayNeedReBind->NeedReBind))
+            {
+                ClassMayNeedReBind = Cast<UTypeScriptGeneratedClass>(TempClass);
+                TempClass = TempClass->GetSuperClass();
+            }
+            if (ClassMayNeedReBind)
+            {
+                NotifyRebind(ClassMayNeedReBind);
+            }
+        }
+#endif
         auto PinedDynamicInvoker = Class->DynamicInvoker.Pin();
         if (PinedDynamicInvoker)
         {
@@ -49,7 +67,7 @@ DEFINE_FUNCTION(UTypeScriptGeneratedClass::execLazyLoadCallJS)
         PinedDynamicInvoker->NotifyReBind(Class);
     }
 #else
-    NotifyRebind(Class);
+    NotifyRebind(Context ? Context->GetClass() : Class);
 #endif
     Class->RestoreNativeFunc();
     execCallJS(Context, Stack, RESULT_PARAM);
