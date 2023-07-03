@@ -1,5 +1,6 @@
 import * as UE from 'ue'
 import {$ref, $unref} from 'puerts'
+import {uproperty} from 'ue'
 
 import TS_BaseGun from './TS_BaseGun'
 import './ObjectExt'
@@ -13,6 +14,7 @@ function delay(t:number) {
 class TS_Player extends UE.Character {
     FpsCamera: UE.CameraComponent;
     EquippedGun:TS_BaseGun;
+    @uproperty.attach("FpsCamera")
     GunLocation:UE.SceneComponent;
     CanShoot: boolean;
 
