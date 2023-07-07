@@ -6,7 +6,7 @@
         "sourceMap": true,
         "experimentalDecorators": true,
         "typeRoots": [
-            "Plugins/Puerts/Typing",
+            "Typing",
             "./node_modules/@types"
         ],
         "outDir": "Content/JavaScript"
