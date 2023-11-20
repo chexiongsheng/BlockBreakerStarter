@@ -12,12 +12,14 @@
 #include "v8.h"
 #pragma warning(pop)
 
+#include "NamespaceDef.h"
+
 #include <map>
 #include "JSClassRegister.h"
 #include "ObjectCacheNode.h"
 #include "ObjectMapper.h"
 
-namespace puerts
+namespace PUERTS_NAMESPACE
 {
 class FCppObjectMapper final : public ICppObjectMapper
 {
@@ -54,4 +56,4 @@ private:
     std::shared_ptr<int> Ref = std::make_shared<int>(0);
 };
 
-}    // namespace puerts
+}    // namespace PUERTS_NAMESPACE

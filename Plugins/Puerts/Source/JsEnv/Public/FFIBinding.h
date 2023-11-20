@@ -8,6 +8,9 @@
 
 #pragma once
 
-typedef void (*FuncPtr)(void);
+#include "inttypes.h"
+#include "CoreMinimal.h"
 
-void JSENV_API SetFunctionArray(FuncPtr* FuncArray, uint32_t FuncArrayLength);
+typedef void (*FuncPtr)();
+
+JSENV_API void SetFunctionArray(FuncPtr* FuncArray, uint32_t FuncArrayLength);

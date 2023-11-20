@@ -15,11 +15,14 @@
 #include "libplatform/libplatform.h"
 #include "v8.h"
 #pragma warning(pop)
+
+#include "PuertsNamespaceDef.h"
+
 #include "WasmFunction.h"
 
 #define M3_FUNCTION_KEY "__puerts_inner_m3_func"
 
-namespace puerts
+namespace PUERTS_NAMESPACE
 {
 struct WasmNormalLinkInfo
 {
@@ -30,5 +33,5 @@ struct WasmNormalLinkInfo
 WasmRuntime* NormalInstanceModule(v8::Isolate* Isolate, v8::Local<v8::Context>& Context, TArray<uint8>& InData,
     v8::Local<v8::Object>& ExportsObject, v8::Local<v8::Value> ImportsValue,
     const TArray<std::shared_ptr<WasmRuntime>>& RuntimeList, TArray<WasmNormalLinkInfo*>& CachedLinkFunctionList);
-};    // namespace puerts
+};    // namespace PUERTS_NAMESPACE
 #endif

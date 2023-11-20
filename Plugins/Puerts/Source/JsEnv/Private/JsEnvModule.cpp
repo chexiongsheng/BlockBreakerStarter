@@ -137,12 +137,12 @@ public:
     }
 };
 
-#if PLATFORM_ANDROID || PLATFORM_WINDOWS || PLATFORM_IOS || PLATFORM_MAC || PLATFORM_LINUX
 #pragma warning(push, 0)
 #include "v8.h"
 #include "libplatform/libplatform.h"
 #pragma warning(pop)
-#endif
+
+#include "NamespaceDef.h"
 
 DEFINE_LOG_CATEGORY_STATIC(JsEnvModule, Log, All);
 
@@ -154,13 +154,11 @@ class FJsEnvModule : public IJsEnvModule
 
     FMallocWrapper* MallocWrapper = nullptr;
 
-#if PLATFORM_ANDROID || PLATFORM_WINDOWS || PLATFORM_IOS || PLATFORM_MAC || PLATFORM_LINUX
 public:
     void* GetV8Platform() override;
 
 private:
     std::unique_ptr<v8::Platform> platform_;
-#endif
 };
 
 IMPLEMENT_MODULE(FJsEnvModule, JsEnv)
@@ -177,7 +175,6 @@ void FJsEnvModule::StartupModule()
     delete[] Dummy;
 
     // This code will execute after your module is loaded into memory (but after global variables are initialized, of course.)
-#if PLATFORM_ANDROID || PLATFORM_WINDOWS || PLATFORM_IOS || PLATFORM_MAC || PLATFORM_LINUX
 #if defined(WITH_NODEJS)
     platform_ = node::MultiIsolatePlatform::Create(4);
 #else
@@ -185,7 +182,6 @@ void FJsEnvModule::StartupModule()
 #endif
     v8::V8::InitializePlatform(platform_.get());
     v8::V8::Initialize();
-#endif
 
 #if defined(WITH_NODEJS)
     int Argc = 1;
@@ -207,10 +203,8 @@ void FJsEnvModule::ShutdownModule()
 {
     // This function may be called during shutdown to clean up your module.  For modules that support dynamic reloading,
     // we call this function before unloading the module.
-#if PLATFORM_ANDROID || PLATFORM_WINDOWS || PLATFORM_IOS || PLATFORM_MAC || PLATFORM_LINUX
     v8::V8::Dispose();
     v8::V8::ShutdownPlatform();
-#endif
 
     if (MallocWrapper && MallocWrapper == GMalloc)
     {
@@ -221,9 +215,7 @@ void FJsEnvModule::ShutdownModule()
     }
 }
 
-#if PLATFORM_ANDROID || PLATFORM_WINDOWS || PLATFORM_IOS || PLATFORM_MAC || PLATFORM_LINUX
 void* FJsEnvModule::GetV8Platform()
 {
     return reinterpret_cast<void*>(platform_.get());
 }
-#endif

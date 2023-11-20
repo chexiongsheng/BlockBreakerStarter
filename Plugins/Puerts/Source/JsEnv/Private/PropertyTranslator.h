@@ -26,7 +26,9 @@
 #include "v8.h"
 #pragma warning(pop)
 
-namespace puerts
+#include "NamespaceDef.h"
+
+namespace PUERTS_NAMESPACE
 {
 class FPropertyTranslator
 {
@@ -178,4 +180,4 @@ public:
 
     void SetAccessor(v8::Isolate* Isolate, v8::Local<v8::FunctionTemplate> Template);
 };
-}    // namespace puerts
+}    // namespace PUERTS_NAMESPACE

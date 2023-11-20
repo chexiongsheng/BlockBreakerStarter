@@ -23,9 +23,11 @@
 #include "v8.h"
 #pragma warning(pop)
 
+#include "NamespaceDef.h"
+
 #define PUERTS_REUSE_STRUCTWRAPPER_FUNCTIONTEMPLATE 1
 
-namespace puerts
+namespace PUERTS_NAMESPACE
 {
 class FStructWrapper
 {
@@ -113,6 +115,11 @@ public:
 
     static void Free(TWeakObjectPtr<UStruct> InStruct, FinalizeFunc InExternalFinalize, void* Ptr);
 
+    void Free(void* Ptr)
+    {
+        Free(Struct, ExternalFinalize, Ptr);
+    }
+
     static void New(const v8::FunctionCallbackInfo<v8::Value>& Info);
 
     void New(v8::Isolate* Isolate, v8::Local<v8::Context>& Context, const v8::FunctionCallbackInfo<v8::Value>& Info);
@@ -131,4 +138,4 @@ public:
 
     void New(v8::Isolate* Isolate, v8::Local<v8::Context>& Context, const v8::FunctionCallbackInfo<v8::Value>& Info);
 };
-}    // namespace puerts
+}    // namespace PUERTS_NAMESPACE

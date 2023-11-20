@@ -19,9 +19,11 @@
 #include "v8.h"
 #pragma warning(pop)
 
+#include "NamespaceDef.h"
+
 #include <memory>
 
-namespace puerts
+namespace PUERTS_NAMESPACE
 {
 class ICppObjectMapper
 {
@@ -67,9 +69,6 @@ public:
     virtual void Merge(
         v8::Isolate* Isolate, v8::Local<v8::Context> Context, v8::Local<v8::Object> Src, UStruct* DesType, void* Des) = 0;
 
-    virtual void BindContainer(
-        void* Ptr, v8::Local<v8::Object> JSObject, void (*Callback)(const v8::WeakCallbackInfo<void>& data)) = 0;
-
     virtual void UnBindContainer(void* Ptr) = 0;
 
     virtual v8::Local<v8::Value> FindOrAddContainer(
@@ -89,7 +88,7 @@ public:
 
     virtual PropertyMacro* FindDelegateProperty(void* DelegatePtr) = 0;
 
-    virtual FScriptDelegate NewManualReleaseDelegate(v8::Isolate* Isolate, v8::Local<v8::Context>& Context,
+    virtual FScriptDelegate NewDelegate(v8::Isolate* Isolate, v8::Local<v8::Context>& Context, UObject* Owner,
         v8::Local<v8::Function> JsFunction, UFunction* SignatureFunction) = 0;
 
     virtual bool RemoveFromDelegate(
@@ -110,4 +109,4 @@ public:
 };
 #endif
 
-}    // namespace puerts
+}    // namespace PUERTS_NAMESPACE

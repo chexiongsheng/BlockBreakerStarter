@@ -15,7 +15,9 @@
 #include "v8.h"
 #pragma warning(pop)
 
-namespace puerts
+#include "NamespaceDef.h"
+
+namespace PUERTS_NAMESPACE
 {
 class FSoftObjectWrapper
 {
@@ -27,4 +29,4 @@ private:
 
     static void Get(const v8::FunctionCallbackInfo<v8::Value>& Info);
 };
-}    // namespace puerts
+}    // namespace PUERTS_NAMESPACE

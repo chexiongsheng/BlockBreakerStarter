@@ -11,7 +11,7 @@
 #include "ObjectMapper.h"
 #include "PathEscape.h"
 
-namespace puerts
+namespace PUERTS_NAMESPACE
 {
 void FStructWrapper::AddExtensionMethods(const std::vector<UFunction*>& InExtensionMethods)
 {
@@ -97,8 +97,11 @@ void FStructWrapper::InitTemplateProperties(
                                                : v8::Local<v8::Value>();
 
                 Template->PrototypeTemplate()->SetAccessorProperty(FV8Utils::InternalString(Isolate, PropertyInfo->Name),
-                    v8::FunctionTemplate::New(Isolate, PropertyInfo->Getter, Data),
-                    v8::FunctionTemplate::New(Isolate, PropertyInfo->Setter, Data), PropertyAttribute);
+                    PropertyInfo->Getter ? v8::FunctionTemplate::New(Isolate, PropertyInfo->Getter, Data)
+                                         : v8::Local<v8::FunctionTemplate>(),
+                    PropertyInfo->Setter ? v8::FunctionTemplate::New(Isolate, PropertyInfo->Setter, Data)
+                                         : v8::Local<v8::FunctionTemplate>(),
+                    PropertyAttribute);
             }
             ++PropertyInfo;
         }
@@ -115,8 +118,11 @@ void FStructWrapper::InitTemplateProperties(
                                                : v8::Local<v8::Value>();
 
                 Template->SetAccessorProperty(FV8Utils::InternalString(Isolate, PropertyInfo->Name),
-                    v8::FunctionTemplate::New(Isolate, PropertyInfo->Getter, Data),
-                    v8::FunctionTemplate::New(Isolate, PropertyInfo->Setter, Data), PropertyAttribute);
+                    PropertyInfo->Getter ? v8::FunctionTemplate::New(Isolate, PropertyInfo->Getter, Data)
+                                         : v8::Local<v8::FunctionTemplate>(),
+                    PropertyInfo->Setter ? v8::FunctionTemplate::New(Isolate, PropertyInfo->Setter, Data)
+                                         : v8::Local<v8::FunctionTemplate>(),
+                    PropertyAttribute);
                 ++PropertyInfo;
             }
         }
@@ -175,19 +181,25 @@ v8::Local<v8::FunctionTemplate> FStructWrapper::ToFunctionTemplate(v8::Isolate* 
             AddedMethods.Add(FunctionInfo->Name);
             if (!IsReuseTemplate)
             {
-#ifdef WITH_V8_FAST_CALL
-                Result->PrototypeTemplate()->Set(FV8Utils::InternalString(Isolate, FunctionInfo->Name),
-                    v8::FunctionTemplate::New(Isolate, FunctionInfo->Callback,
-                        FunctionInfo->Data ? static_cast<v8::Local<v8::Value>>(v8::External::New(Isolate, FunctionInfo->Data))
-                                           : v8::Local<v8::Value>(),
-                        v8::Local<v8::Signature>(), 0, v8::ConstructorBehavior::kAllow, v8::SideEffectType::kHasSideEffect,
-                        FunctionInfo->ReflectionInfo ? FunctionInfo->ReflectionInfo->FastCallInfo() : nullptr));
-#else
-                Result->PrototypeTemplate()->Set(FV8Utils::InternalString(Isolate, FunctionInfo->Name),
-                    v8::FunctionTemplate::New(Isolate, FunctionInfo->Callback,
-                        FunctionInfo->Data ? static_cast<v8::Local<v8::Value>>(v8::External::New(Isolate, FunctionInfo->Data))
-                                           : v8::Local<v8::Value>()));
+#ifndef WITH_QUICKJS
+                auto FastCallInfo = FunctionInfo->ReflectionInfo ? FunctionInfo->ReflectionInfo->FastCallInfo() : nullptr;
+                if (FastCallInfo)
+                {
+                    Result->PrototypeTemplate()->Set(FV8Utils::InternalString(Isolate, FunctionInfo->Name),
+                        v8::FunctionTemplate::New(Isolate, FunctionInfo->Callback,
+                            FunctionInfo->Data ? static_cast<v8::Local<v8::Value>>(v8::External::New(Isolate, FunctionInfo->Data))
+                                               : v8::Local<v8::Value>(),
+                            v8::Local<v8::Signature>(), 0, v8::ConstructorBehavior::kThrow, v8::SideEffectType::kHasSideEffect,
+                            FastCallInfo));
+                }
+                else
 #endif
+                {
+                    Result->PrototypeTemplate()->Set(FV8Utils::InternalString(Isolate, FunctionInfo->Name),
+                        v8::FunctionTemplate::New(Isolate, FunctionInfo->Callback,
+                            FunctionInfo->Data ? static_cast<v8::Local<v8::Value>>(v8::External::New(Isolate, FunctionInfo->Data))
+                                               : v8::Local<v8::Value>()));
+                }
             }
             ++FunctionInfo;
         }
@@ -197,19 +209,25 @@ v8::Local<v8::FunctionTemplate> FStructWrapper::ToFunctionTemplate(v8::Isolate* 
             AddedFunctions.Add(FunctionInfo->Name);
             if (!IsReuseTemplate)
             {
-#ifdef WITH_V8_FAST_CALL
-                Result->Set(FV8Utils::InternalString(Isolate, FunctionInfo->Name),
-                    v8::FunctionTemplate::New(Isolate, FunctionInfo->Callback,
-                        FunctionInfo->Data ? static_cast<v8::Local<v8::Value>>(v8::External::New(Isolate, FunctionInfo->Data))
-                                           : v8::Local<v8::Value>(),
-                        v8::Local<v8::Signature>(), 0, v8::ConstructorBehavior::kAllow, v8::SideEffectType::kHasSideEffect,
-                        FunctionInfo->ReflectionInfo ? FunctionInfo->ReflectionInfo->FastCallInfo() : nullptr));
-#else
-                Result->Set(FV8Utils::InternalString(Isolate, FunctionInfo->Name),
-                    v8::FunctionTemplate::New(Isolate, FunctionInfo->Callback,
-                        FunctionInfo->Data ? static_cast<v8::Local<v8::Value>>(v8::External::New(Isolate, FunctionInfo->Data))
-                                           : v8::Local<v8::Value>()));
+#ifndef WITH_QUICKJS
+                auto FastCallInfo = FunctionInfo->ReflectionInfo ? FunctionInfo->ReflectionInfo->FastCallInfo() : nullptr;
+                if (FastCallInfo)
+                {
+                    Result->Set(FV8Utils::InternalString(Isolate, FunctionInfo->Name),
+                        v8::FunctionTemplate::New(Isolate, FunctionInfo->Callback,
+                            FunctionInfo->Data ? static_cast<v8::Local<v8::Value>>(v8::External::New(Isolate, FunctionInfo->Data))
+                                               : v8::Local<v8::Value>(),
+                            v8::Local<v8::Signature>(), 0, v8::ConstructorBehavior::kThrow, v8::SideEffectType::kHasSideEffect,
+                            FastCallInfo));
+                }
+                else
 #endif
+                {
+                    Result->Set(FV8Utils::InternalString(Isolate, FunctionInfo->Name),
+                        v8::FunctionTemplate::New(Isolate, FunctionInfo->Callback,
+                            FunctionInfo->Data ? static_cast<v8::Local<v8::Value>>(v8::External::New(Isolate, FunctionInfo->Data))
+                                               : v8::Local<v8::Value>()));
+                }
             }
             ++FunctionInfo;
         }
@@ -478,8 +496,8 @@ void FStructWrapper::Load(const v8::FunctionCallbackInfo<v8::Value>& Info)
             UnEscape = Info[1]->BooleanValue(Isolate);
         }
         auto Path = FV8Utils::ToFString(Isolate, Info[0]);
-        auto Object = StaticLoadObject(
-            Class, nullptr, UnEscape ? *puerts::TypeScriptVariableNameToFilename(Path) : *Path, nullptr, LOAD_NoWarn);
+        auto Object =
+            StaticLoadObject(Class, nullptr, UnEscape ? *TypeScriptVariableNameToFilename(Path) : *Path, nullptr, LOAD_NoWarn);
         if (Object)
         {
             auto Result = FV8Utils::IsolateData<IObjectMapper>(Isolate)->FindOrAdd(Isolate, Context, Object->GetClass(), Object);
@@ -637,4 +655,4 @@ void FClassWrapper::New(v8::Isolate* Isolate, v8::Local<v8::Context>& Context, c
         FV8Utils::ThrowException(Isolate, "only call as Construct is supported!");
     }
 }
-}    // namespace puerts
+}    // namespace PUERTS_NAMESPACE

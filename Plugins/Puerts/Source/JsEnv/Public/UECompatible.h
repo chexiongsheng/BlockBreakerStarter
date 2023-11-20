@@ -8,9 +8,13 @@
 
 #pragma once
 
+#include "Runtime/Launch/Resources/Version.h"
 #include "CoreMinimal.h"
+#include "UObject/Object.h"
+#include "UObject/UObjectIterator.h"
+#include "PuertsNamespaceDef.h"
 
-namespace puerts
+namespace PUERTS_NAMESPACE
 {
 FORCEINLINE bool UEObjectIsPendingKill(const UObject* Test)
 {
@@ -51,4 +55,4 @@ T* FindAnyType(const FString& InShortName)
 {
     return FindAnyType<T>(*InShortName);
 }
-}    // namespace puerts
+}    // namespace PUERTS_NAMESPACE

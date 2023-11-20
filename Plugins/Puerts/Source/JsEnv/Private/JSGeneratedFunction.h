@@ -15,6 +15,8 @@
 #include "v8.h"
 #pragma warning(pop)
 
+#include "NamespaceDef.h"
+
 #include "DynamicInvoker.h"
 #include "FunctionTranslator.h"
 
@@ -37,9 +39,9 @@ public:
 
     v8::UniquePersistent<v8::Function> JsFunction;
 
-    TWeakPtr<puerts::IDynamicInvoker, ESPMode::ThreadSafe> DynamicInvoker;
+    TWeakPtr<PUERTS_NAMESPACE::IDynamicInvoker, ESPMode::ThreadSafe> DynamicInvoker;
 
-    std::unique_ptr<puerts::FFunctionTranslator> FunctionTranslator;
+    std::unique_ptr<PUERTS_NAMESPACE::FFunctionTranslator> FunctionTranslator;
 
     bool TakeJsObjectRef;
 

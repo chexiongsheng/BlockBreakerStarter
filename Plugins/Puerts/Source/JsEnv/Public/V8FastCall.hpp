@@ -13,7 +13,7 @@
 #pragma warning(pop)
 #include "DataTransfer.h"
 
-namespace puerts
+namespace PUERTS_NAMESPACE
 {
 template <typename T, typename Enable = void>
 struct FastCallArgument
@@ -166,7 +166,7 @@ struct V8FastCall<Ret (*)(Args...), func,
     typename std::enable_if<IsReturnSupportedHelper<Ret>::value && IsArgsSupportedHelper<std::tuple<Args...>>::value &&
                             (sizeof...(Args) > 0)>::type>
 {
-    static Ret Wrap(typename FastCallArgument<Args>::DeclType... args)
+    static Ret Wrap(v8::Local<v8::Object> receiver_obj, typename FastCallArgument<Args>::DeclType... args)
     {
         return func(FastCallArgument<Args>::Get(args)...);
     }
@@ -212,4 +212,4 @@ struct V8FastCall<Ret (Inc::*)(Args...) const, func,
     }
 };
 
-}    // namespace puerts
+}    // namespace PUERTS_NAMESPACE

@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Tencent is pleased to support the open source community by making Puerts available.
  * Copyright (C) 2020 THL A29 Limited, a Tencent company.  All rights reserved.
  * Puerts is licensed under the BSD 3-Clause License, except for the third-party components listed in the file 'LICENSE' which may
@@ -12,7 +12,7 @@
 #define USING_UE 0
 #endif
 
-#if (PLATFORM_WINDOWS || PLATFORM_MAC || WITH_INSPECTOR) && !defined(WITHOUT_INSPECTOR)
+#if (PLATFORM_WINDOWS || PLATFORM_MAC || PLATFORM_LINUX || WITH_INSPECTOR) && !defined(WITHOUT_INSPECTOR)
 
 #include "V8InspectorImpl.h"
 
@@ -45,7 +45,7 @@
 DEFINE_LOG_CATEGORY_STATIC(LogV8Inspector, Log, All);
 #endif
 
-namespace puerts
+namespace PUERTS_NAMESPACE
 {
 class V8InspectorChannelImpl : public v8_inspector::V8Inspector::Channel, public V8InspectorChannel
 {
@@ -111,6 +111,7 @@ void V8InspectorChannelImpl::SendMessage(v8_inspector::StringBuffer& MessageBuff
     else
     {
 #if PLATFORM_WINDOWS
+#pragma warning(disable : 4996)
         std::wstring_convert<std::codecvt_utf8_utf16<uint16_t>, uint16_t> Conv;
         const uint16_t* Start = MessageView.characters16();
 #else
@@ -546,18 +547,18 @@ V8Inspector* CreateV8Inspector(int32_t Port, void* InContextPtr)
     v8::Local<v8::Context>* ContextPtr = static_cast<v8::Local<v8::Context>*>(InContextPtr);
     return new V8InspectorClientImpl(Port, *ContextPtr);
 }
-};    // namespace puerts
+};    // namespace PUERTS_NAMESPACE
 
 #else
 
 #include "V8InspectorImpl.h"
 
-namespace puerts
+namespace PUERTS_NAMESPACE
 {
 V8Inspector* CreateV8Inspector(int32_t Port, void* InContextPtr)
 {
     return nullptr;
 }
-};    // namespace puerts
+};    // namespace PUERTS_NAMESPACE
 
 #endif    // WITH_EDITOR && (PLATFORM_WINDOWS || PLATFORM_MAC)

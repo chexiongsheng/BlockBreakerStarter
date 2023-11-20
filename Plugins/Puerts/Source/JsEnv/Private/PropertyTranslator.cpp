@@ -20,7 +20,7 @@
 #include "TypeInfo.hpp"
 #endif
 
-namespace puerts
+namespace PUERTS_NAMESPACE
 {
 void FPropertyTranslator::Getter(const v8::FunctionCallbackInfo<v8::Value>& Info)
 {
@@ -405,21 +405,13 @@ public:
         if (Value->IsArrayBuffer())
         {
             auto Ab = v8::Local<v8::ArrayBuffer>::Cast(Value);
-#if defined(HAS_ARRAYBUFFER_NEW_WITHOUT_STL)
             size_t ByteLength;
-            auto Data = v8::ArrayBuffer_Get_Data(Ab, ByteLength);
+            auto Data = DataTransfer::GetArrayBufferData(Ab, ByteLength);
             if (ByteLength == sizeof(FName))
             {
                 NameProperty->SetPropertyValue(ValuePtr, *static_cast<FName*>(Data));
                 return true;
             }
-#else
-            if (Ab->GetContents().ByteLength() == sizeof(FName))
-            {
-                NameProperty->SetPropertyValue(ValuePtr, *static_cast<FName*>(Ab->GetContents().Data()));
-                return true;
-            }
-#endif
         }
         NameProperty->SetPropertyValue(ValuePtr, FV8Utils::ToFName(Isolate, Value));
         return true;
@@ -439,7 +431,7 @@ public:
 #ifndef PUERTS_FTEXT_AS_OBJECT
         return FV8Utils::ToV8String(Isolate, TextProperty->GetPropertyValue(ValuePtr));
 #else
-        return DataTransfer::FindOrAddCData(Context->GetIsolate(), Context, puerts::StaticTypeId<FText>::get(),
+        return DataTransfer::FindOrAddCData(Context->GetIsolate(), Context, StaticTypeId<FText>::get(),
             PassByPointer ? ValuePtr : new FText(TextProperty->GetPropertyValue(ValuePtr)), PassByPointer);
 #endif
     }
@@ -715,21 +707,13 @@ public:
         if (ArrayBuffer->bCopy)
         {
             v8::Local<v8::ArrayBuffer> Ab = v8::ArrayBuffer::New(Isolate, ArrayBuffer->Length);
-#if defined(HAS_ARRAYBUFFER_NEW_WITHOUT_STL)
-            void* Buff = static_cast<char*>(v8::ArrayBuffer_Get_Data(Ab));
-#else
-            void* Buff = Ab->GetContents().Data();
-#endif
+            void* Buff = static_cast<char*>(DataTransfer::GetArrayBufferData(Ab));
             ::memcpy(Buff, ArrayBuffer->Data, ArrayBuffer->Length);
             return Ab;
         }
         else
         {
-#if defined(HAS_ARRAYBUFFER_NEW_WITHOUT_STL)
-            return v8::ArrayBuffer_New_Without_Stl(Isolate, ArrayBuffer->Data, ArrayBuffer->Length);
-#else
-            return v8::ArrayBuffer::New(Isolate, ArrayBuffer->Data, ArrayBuffer->Length);
-#endif
+            return DataTransfer::NewArrayBuffer(Context, ArrayBuffer->Data, ArrayBuffer->Length);
         }
     }
 
@@ -741,24 +725,15 @@ public:
         {
             v8::Local<v8::ArrayBufferView> BuffView = Value.As<v8::ArrayBufferView>();
             auto Ab = BuffView->Buffer();
-#if defined(HAS_ARRAYBUFFER_NEW_WITHOUT_STL)
-            ArrayBuffer.Data = static_cast<char*>(v8::ArrayBuffer_Get_Data(Ab)) + BuffView->ByteOffset();
-#else
-            ArrayBuffer.Data = static_cast<char*>(Ab->GetContents().Data()) + BuffView->ByteOffset();
-#endif
+            ArrayBuffer.Data = static_cast<char*>(DataTransfer::GetArrayBufferData(Ab)) + BuffView->ByteOffset();
             ArrayBuffer.Length = BuffView->ByteLength();
         }
         else if (Value->IsArrayBuffer())
         {
             auto Ab = v8::Local<v8::ArrayBuffer>::Cast(Value);
-#if defined(HAS_ARRAYBUFFER_NEW_WITHOUT_STL)
             size_t ByteLength;
-            ArrayBuffer.Data = v8::ArrayBuffer_Get_Data(Ab, ByteLength);
+            ArrayBuffer.Data = DataTransfer::GetArrayBufferData(Ab, ByteLength);
             ArrayBuffer.Length = ByteLength;
-#else
-            ArrayBuffer.Data = Ab->GetContents().Data();
-            ArrayBuffer.Length = Ab->GetContents().ByteLength();
-#endif
         }
 
         StructProperty->CopySingleValue(ValuePtr, &ArrayBuffer);
@@ -781,11 +756,7 @@ public:
 
         FArrayBufferValue* ArrayBuffer = static_cast<FArrayBufferValue*>(Ptr);
         v8::Local<v8::ArrayBuffer> Ab = v8::ArrayBuffer::New(Isolate, ArrayBuffer->Data.Num());
-#if defined(HAS_ARRAYBUFFER_NEW_WITHOUT_STL)
-        void* Buff = static_cast<char*>(v8::ArrayBuffer_Get_Data(Ab));
-#else
-        void* Buff = Ab->GetContents().Data();
-#endif
+        void* Buff = static_cast<char*>(DataTransfer::GetArrayBufferData(Ab));
         ::memcpy(Buff, ArrayBuffer->Data.GetData(), ArrayBuffer->Data.Num());
         return Ab;
     }
@@ -800,22 +771,13 @@ public:
         {
             v8::Local<v8::ArrayBufferView> BuffView = Value.As<v8::ArrayBufferView>();
             auto Ab = BuffView->Buffer();
-#if defined(HAS_ARRAYBUFFER_NEW_WITHOUT_STL)
-            Data = static_cast<char*>(v8::ArrayBuffer_Get_Data(Ab)) + BuffView->ByteOffset();
-#else
-            Data = static_cast<char*>(Ab->GetContents().Data()) + BuffView->ByteOffset();
-#endif
+            Data = static_cast<char*>(DataTransfer::GetArrayBufferData(Ab)) + BuffView->ByteOffset();
             Len = BuffView->ByteLength();
         }
         else if (Value->IsArrayBuffer())
         {
             auto Ab = v8::Local<v8::ArrayBuffer>::Cast(Value);
-#if defined(HAS_ARRAYBUFFER_NEW_WITHOUT_STL)
-            Data = static_cast<char*>(v8::ArrayBuffer_Get_Data(Ab, Len));
-#else
-            Data = static_cast<char*>(Ab->GetContents().Data());
-            Len = Ab->GetContents().ByteLength();
-#endif
+            Data = static_cast<char*>(DataTransfer::GetArrayBufferData(Ab, Len));
         }
 
         if (Len > 0 && Data)
@@ -1118,8 +1080,8 @@ public:
         FScriptDelegate* Des = DelegateProperty->GetPropertyValuePtr(ValuePtr);
         if (Value->IsFunction())
         {
-            *Des = FV8Utils::IsolateData<IObjectMapper>(Isolate)->NewManualReleaseDelegate(
-                Isolate, Context, Value.As<v8::Function>(), DelegateProperty->SignatureFunction);
+            *Des = FV8Utils::IsolateData<IObjectMapper>(Isolate)->NewDelegate(
+                Isolate, Context, nullptr, Value.As<v8::Function>(), DelegateProperty->SignatureFunction);
         }
         else
         {
@@ -1140,12 +1102,17 @@ public:
                         return false;
                     }
 
-                    auto FuncName = Array->Get(Context, 1).ToLocalChecked();
-                    if (FuncName->IsString())
+                    auto Func = Array->Get(Context, 1).ToLocalChecked();
+                    if (Func->IsString())
                     {
                         FScriptDelegate Delegate;
-                        Delegate.BindUFunction(Obj, *FV8Utils::ToFString(Isolate, FuncName));
+                        Delegate.BindUFunction(Obj, *FV8Utils::ToFString(Isolate, Func));
                         *Des = Delegate;
+                    }
+                    else if (Func->IsFunction())
+                    {
+                        *Des = FV8Utils::IsolateData<IObjectMapper>(Isolate)->NewDelegate(
+                            Isolate, Context, Obj, Func.As<v8::Function>(), DelegateProperty->SignatureFunction);
                     }
                 }
             }
@@ -1446,4 +1413,4 @@ void FPropertyTranslator::CreateOn(PropertyMacro* InProperty, FPropertyTranslato
     PropertyTranslatorCreator<PlacementNewCreator, FPropertyTranslator*>::Do(InProperty, true, InOldProperty);
 }
 
-}    // namespace puerts
+}    // namespace PUERTS_NAMESPACE

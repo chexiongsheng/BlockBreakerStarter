@@ -8,23 +8,18 @@
 
 #pragma once
 
-#include <map>
 #include <string>
-#include <algorithm>
 #include <functional>
 #include <memory>
 
 #include "CoreMinimal.h"
-#include "UObject/GCObject.h"
-#include "Containers/Ticker.h"
-#include "ObjectRetainer.h"
 #include "JSLogger.h"
 #include "JSModuleLoader.h"
 #if !defined(ENGINE_INDEPENDENT_JSENV)
 #include "ExtensionMethods.h"
 #endif
 
-namespace puerts
+namespace PUERTS_NAMESPACE
 {
 class JSENV_API IJsEnv
 {
@@ -105,4 +100,4 @@ private:
     std::unique_ptr<IJsEnv> GameScript;
 };
 
-}    // namespace puerts
+}    // namespace PUERTS_NAMESPACE

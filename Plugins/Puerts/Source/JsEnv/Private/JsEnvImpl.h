@@ -15,7 +15,7 @@
 #include "V8Utils.h"
 #include "ObjectMapper.h"
 #include "JSLogger.h"
-#include "TickerDelegateWrapper.h"
+#include "ObjectRetainer.h"
 #if !defined(ENGINE_INDEPENDENT_JSENV)
 #include "TypeScriptGeneratedClass.h"
 #endif
@@ -32,6 +32,8 @@
 #include "libplatform/libplatform.h"
 #include "v8.h"
 #pragma warning(pop)
+
+#include "NamespaceDef.h"
 
 #include "V8InspectorImpl.h"
 
@@ -53,7 +55,7 @@
 #define WITH_BACKING_STORE_AUTO_FREE 1
 #endif
 
-namespace puerts
+namespace PUERTS_NAMESPACE
 {
 class JSError
 {
@@ -164,13 +166,17 @@ public:
     virtual void Merge(
         v8::Isolate* Isolate, v8::Local<v8::Context> Context, v8::Local<v8::Object> Src, UStruct* DesType, void* Des) override;
 
-    virtual void BindContainer(
-        void* Ptr, v8::Local<v8::Object> JSObject, void (*Callback)(const v8::WeakCallbackInfo<void>& data)) override;
+    enum ContainerType
+    {
+        EArray,
+        EMap,
+        ESet
+    };
+
+    void BindContainer(void* Ptr, v8::Local<v8::Object> JSObject, void (*Callback)(const v8::WeakCallbackInfo<void>& data),
+        bool PassByPointer, ContainerType Type);
 
     virtual void UnBindContainer(void* Ptr) override;
-
-    virtual v8::Local<v8::Value> FindOrAddContainer(v8::Isolate* Isolate, v8::Local<v8::Context>& Context,
-        v8::Local<v8::Function> Constructor, PropertyMacro* Property1, PropertyMacro* Property2, void* Ptr, bool PassByPointer);
 
     virtual v8::Local<v8::Value> FindOrAddContainer(v8::Isolate* Isolate, v8::Local<v8::Context>& Context, PropertyMacro* Property,
         FScriptArray* Ptr, bool PassByPointer) override;
@@ -189,7 +195,7 @@ public:
 
     virtual PropertyMacro* FindDelegateProperty(void* DelegatePtr) override;
 
-    virtual FScriptDelegate NewManualReleaseDelegate(v8::Isolate* Isolate, v8::Local<v8::Context>& Context,
+    virtual FScriptDelegate NewDelegate(v8::Isolate* Isolate, v8::Local<v8::Context>& Context, UObject* Owner,
         v8::Local<v8::Function> JsFunction, UFunction* SignatureFunction) override;
 
     void ReleaseManualReleaseDelegate(const v8::FunctionCallbackInfo<v8::Value>& Info);
@@ -257,7 +263,7 @@ private:
     bool LoadFile(const FString& RequiringDir, const FString& ModuleName, FString& OutPath, FString& OutDebugPath,
         TArray<uint8>& Data, FString& ErrInfo);
 
-    void ExecuteModule(const FString& ModuleName, std::function<FString(const FString&, const FString&)> Preprocessor = nullptr);
+    void ExecuteModule(const FString& ModuleName);
 
     void EvalScript(const v8::FunctionCallbackInfo<v8::Value>& Info);
 
@@ -297,10 +303,9 @@ private:
 
     void SetFTickerDelegate(const v8::FunctionCallbackInfo<v8::Value>& Info, bool Continue);
 
-    void ReportExecutionException(
-        v8::Isolate* Isolate, v8::TryCatch* TryCatch, std::function<void(const JSError*)> CompletionHandler);
+    bool TimerCallback(int DelegateHandleId, bool Continue);
 
-    void RemoveFTickerDelegateHandle(FUETickDelegateHandle* Handle);
+    void RemoveFTickerDelegateHandle(int HandleId);
 
     void SetInterval(const v8::FunctionCallbackInfo<v8::Value>& Info);
 
@@ -475,9 +480,9 @@ public:
     TSharedPtr<IDynamicInvoker, ESPMode::ThreadSafe> MixinInvoker;
 #endif
 private:
-    puerts::FObjectRetainer UserObjectRetainer;
+    FObjectRetainer UserObjectRetainer;
 
-    puerts::FObjectRetainer SysObjectRetainer;
+    FObjectRetainer SysObjectRetainer;
 
     std::shared_ptr<IJSModuleLoader> ModuleLoader;
 
@@ -538,6 +543,10 @@ private:
     v8::Global<v8::Function> MergePrototype;
 #endif
 
+    v8::Global<v8::Function> RemoveListItem;
+
+    v8::Global<v8::Function> GenListApply;
+
     TMap<UStruct*, FTemplateInfo> TypeToTemplateInfoMap;
 
     TMap<FString, std::shared_ptr<FStructWrapper>> TypeReflectionMap;
@@ -546,18 +555,16 @@ private:
 
     TMap<void*, FObjectCacheNode> StructCache;
 
-    TMap<void*, v8::UniquePersistent<v8::Value>> ContainerCache;
+    struct ContainerCacheItem
+    {
+        v8::UniquePersistent<v8::Value> Container;
+        bool NeedRelease;
+        ContainerType Type;
+    };
+
+    TMap<void*, ContainerCacheItem> ContainerCache;
 
     FCppObjectMapper CppObjectMapper;
-
-#if !WITH_BACKING_STORE_AUTO_FREE && !defined(HAS_ARRAYBUFFER_NEW_WITHOUT_STL)
-    struct ScriptStructFinalizeInfo
-    {
-        TWeakObjectPtr<UStruct> Struct;
-        FinalizeFunc Finalize;
-    };
-    TMap<void*, ScriptStructFinalizeInfo> ScriptStructFinalizeInfoMap;
-#endif
 
     v8::UniquePersistent<v8::FunctionTemplate> ArrayTemplate;
 
@@ -591,15 +598,15 @@ private:
         MulticastDelegatePropertyMacro* MulticastDelegateProperty;
         UFunction* SignatureFunction;
         bool PassByPointer;
-        TWeakObjectPtr<UDynamicDelegateProxy> Proxy;           // for delegate
-        TSet<TWeakObjectPtr<UDynamicDelegateProxy>> Proxys;    // for MulticastDelegate
+        TWeakObjectPtr<UDynamicDelegateProxy> Proxy;
+        v8::UniquePersistent<v8::Array> JsCallbacks;
     };
 
     struct TsFunctionInfo
     {
         v8::UniquePersistent<v8::Function> JsFunction;
 
-        std::unique_ptr<puerts::FFunctionTranslator> FunctionTranslator;
+        std::unique_ptr<FFunctionTranslator> FunctionTranslator;
     };
 
     class DynamicInvokerImpl : public IDynamicInvoker
@@ -673,7 +680,12 @@ private:
 
     bool ExtensionMethodsMapInited = false;
 
-    std::map<FUETickDelegateHandle*, FTickerDelegateWrapper*> TickerDelegateHandleMap;
+    struct FTimerInfo
+    {
+        v8::Global<v8::Function> Callback;
+        FUETickDelegateHandle TickerHandle;
+    };
+    TSparseArray<FTimerInfo> TimerInfos;
 
     FUETickDelegateHandle DelegateProxiesCheckerHandler;
 
@@ -688,6 +700,8 @@ private:
     v8::Global<v8::Map> ManualReleaseCallbackMap;
 
     std::vector<TWeakObjectPtr<UDynamicDelegateProxy>> ManualReleaseCallbackList;
+
+    TMap<UObject*, TArray<TWeakObjectPtr<UDynamicDelegateProxy>>> AutoReleaseCallbacksMap;
 
 #ifndef WITH_QUICKJS
     TMap<FString, v8::Global<v8::Module>> PathToModule;
@@ -723,4 +737,4 @@ private:
     };
 };
 
-}    // namespace puerts
+}    // namespace PUERTS_NAMESPACE

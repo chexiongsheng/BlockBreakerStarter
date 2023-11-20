@@ -13,11 +13,13 @@
 #include "v8.h"
 #pragma warning(pop)
 
+#include "NamespaceDef.h"
+
 #include "CoreUObject.h"
 
 class UDynamicDelegateProxy;
 class UJSGeneratedFunction;
-namespace puerts
+namespace PUERTS_NAMESPACE
 {
 class IDynamicInvoker
 {
@@ -34,4 +36,4 @@ public:
 #endif
 };
 
-}    // namespace puerts
+}    // namespace PUERTS_NAMESPACE

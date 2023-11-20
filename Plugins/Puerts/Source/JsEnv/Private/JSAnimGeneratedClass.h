@@ -13,6 +13,8 @@
 #include "v8.h"
 #pragma warning(pop)
 
+#include "NamespaceDef.h"
+
 #include "DynamicInvoker.h"
 
 #include "CoreMinimal.h"
@@ -39,7 +41,7 @@ public:
 
     v8::UniquePersistent<v8::Object> Prototype;
 
-    TWeakPtr<puerts::IDynamicInvoker, ESPMode::ThreadSafe> DynamicInvoker;
+    TWeakPtr<PUERTS_NAMESPACE::IDynamicInvoker, ESPMode::ThreadSafe> DynamicInvoker;
 
 #ifdef THREAD_SAFE
     v8::Isolate* Isolate;

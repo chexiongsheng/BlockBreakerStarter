@@ -11,8 +11,9 @@
 #include "UObject/Class.h"
 #endif
 #include <map>
+#include <cstring>
 
-namespace puerts
+namespace PUERTS_NAMESPACE
 {
 template <class T>
 static T* PropertyInfoDuplicate(T* Arr)
@@ -69,25 +70,28 @@ public:
 
     void RegisterClass(const JSClassDefinition& ClassDefinition);
 
+    void SetClassTypeInfo(const void* TypeId, const NamedFunctionInfo* ConstructorInfos, const NamedFunctionInfo* MethodInfos,
+        const NamedFunctionInfo* FunctionInfos, const NamedPropertyInfo* PropertyInfos, const NamedPropertyInfo* VariableInfos);
+
     void ForeachRegisterClass(std::function<void(const JSClassDefinition* ClassDefinition)>);
 
     const JSClassDefinition* FindClassByID(const void* TypeId);
 
     const JSClassDefinition* FindCppTypeClassByName(const std::string& Name);
 
+#if USING_IN_UNREAL_ENGINE
     void RegisterAddon(const std::string& Name, AddonRegisterFunc RegisterFunc);
 
     AddonRegisterFunc FindAddonRegisterFunc(const std::string& Name);
 
-#if USING_IN_UNREAL_ENGINE
     const JSClassDefinition* FindClassByType(UStruct* Type);
 #endif
 
 private:
     std::map<const void*, JSClassDefinition*> CDataIdToClassDefinition;
     std::map<std::string, JSClassDefinition*> CDataNameToClassDefinition;
-    std::map<std::string, AddonRegisterFunc> AddonRegisterInfos;
 #if USING_IN_UNREAL_ENGINE
+    std::map<std::string, AddonRegisterFunc> AddonRegisterInfos;
     std::map<FString, JSClassDefinition*> StructNameToClassDefinition;
 #endif
 };
@@ -124,6 +128,7 @@ void JSClassRegister::RegisterClass(const JSClassDefinition& ClassDefinition)
         CDataIdToClassDefinition[ClassDefinition.TypeId] = JSClassDefinitionDuplicate(&ClassDefinition);
         std::string SN = ClassDefinition.ScriptName;
         CDataNameToClassDefinition[SN] = CDataIdToClassDefinition[ClassDefinition.TypeId];
+        CDataIdToClassDefinition[ClassDefinition.TypeId]->ScriptName = CDataNameToClassDefinition.find(SN)->first.c_str();
     }
 #if USING_IN_UNREAL_ENGINE
     else if (ClassDefinition.UETypeName)
@@ -137,6 +142,53 @@ void JSClassRegister::RegisterClass(const JSClassDefinition& ClassDefinition)
         StructNameToClassDefinition[SN] = JSClassDefinitionDuplicate(&ClassDefinition);
     }
 #endif
+}
+
+void SetReflectoinInfo(JSFunctionInfo* Methods, const NamedFunctionInfo* MethodInfos)
+{
+    std::map<std::string, std::tuple<int, const NamedFunctionInfo*>> InfoMap;
+    const NamedFunctionInfo* MethodInfo = MethodInfos;
+    while (MethodInfo->Name)
+    {
+        auto Iter = InfoMap.find(MethodInfo->Name);
+        if (Iter == InfoMap.end())
+        {
+            InfoMap[MethodInfo->Name] = std::make_tuple(1, MethodInfo);
+        }
+        else
+        {
+            std::get<0>(Iter->second) = 2;
+        }
+        ++MethodInfo;
+    }
+
+    JSFunctionInfo* Method = Methods;
+    while (Method->Name)
+    {
+        auto Iter = InfoMap.find(Method->Name);
+        if (Iter != InfoMap.end() && std::get<0>(Iter->second) == 1)
+        {
+            Method->ReflectionInfo = std::get<1>(Iter->second)->Type;
+        }
+        ++Method;
+    }
+}
+
+void JSClassRegister::SetClassTypeInfo(const void* TypeId, const NamedFunctionInfo* ConstructorInfos,
+    const NamedFunctionInfo* MethodInfos, const NamedFunctionInfo* FunctionInfos, const NamedPropertyInfo* PropertyInfos,
+    const NamedPropertyInfo* VariableInfos)
+{
+    auto ClassDef = const_cast<JSClassDefinition*>(FindClassByID(TypeId));
+    if (ClassDef)
+    {
+        ClassDef->ConstructorInfos = PropertyInfoDuplicate(const_cast<NamedFunctionInfo*>(ConstructorInfos));
+        ClassDef->MethodInfos = PropertyInfoDuplicate(const_cast<NamedFunctionInfo*>(MethodInfos));
+        ClassDef->FunctionInfos = PropertyInfoDuplicate(const_cast<NamedFunctionInfo*>(FunctionInfos));
+        ClassDef->PropertyInfos = PropertyInfoDuplicate(const_cast<NamedPropertyInfo*>(PropertyInfos));
+        ClassDef->VariableInfos = PropertyInfoDuplicate(const_cast<NamedPropertyInfo*>(VariableInfos));
+        SetReflectoinInfo(ClassDef->Methods, ClassDef->MethodInfos);
+        SetReflectoinInfo(ClassDef->Functions, ClassDef->FunctionInfos);
+    }
 }
 
 const JSClassDefinition* JSClassRegister::FindClassByID(const void* TypeId)
@@ -165,6 +217,7 @@ const JSClassDefinition* JSClassRegister::FindCppTypeClassByName(const std::stri
     }
 }
 
+#if USING_IN_UNREAL_ENGINE
 void JSClassRegister::RegisterAddon(const std::string& Name, AddonRegisterFunc RegisterFunc)
 {
     AddonRegisterInfos[Name] = RegisterFunc;
@@ -183,7 +236,6 @@ AddonRegisterFunc JSClassRegister::FindAddonRegisterFunc(const std::string& Name
     }
 }
 
-#if USING_IN_UNREAL_ENGINE
 const JSClassDefinition* JSClassRegister::FindClassByType(UStruct* Type)
 {
     auto Iter = StructNameToClassDefinition.find(Type->GetName());
@@ -223,6 +275,12 @@ void RegisterJSClass(const JSClassDefinition& ClassDefinition)
     GetJSClassRegister()->RegisterClass(ClassDefinition);
 }
 
+void SetClassTypeInfo(const void* TypeId, const NamedFunctionInfo* ConstructorInfos, const NamedFunctionInfo* MethodInfos,
+    const NamedFunctionInfo* FunctionInfos, const NamedPropertyInfo* PropertyInfos, const NamedPropertyInfo* VariableInfos)
+{
+    GetJSClassRegister()->SetClassTypeInfo(TypeId, ConstructorInfos, MethodInfos, FunctionInfos, PropertyInfos, VariableInfos);
+}
+
 void ForeachRegisterClass(std::function<void(const JSClassDefinition* ClassDefinition)> Callback)
 {
     GetJSClassRegister()->ForeachRegisterClass(Callback);
@@ -238,6 +296,7 @@ const JSClassDefinition* FindCppTypeClassByName(const std::string& Name)
     return GetJSClassRegister()->FindCppTypeClassByName(Name);
 }
 
+#if USING_IN_UNREAL_ENGINE
 void RegisterAddon(const char* Name, AddonRegisterFunc RegisterFunc)
 {
     GetJSClassRegister()->RegisterAddon(Name, RegisterFunc);
@@ -248,11 +307,10 @@ AddonRegisterFunc FindAddonRegisterFunc(const std::string& Name)
     return GetJSClassRegister()->FindAddonRegisterFunc(Name);
 }
 
-#if USING_IN_UNREAL_ENGINE
 const JSClassDefinition* FindClassByType(UStruct* Type)
 {
     return GetJSClassRegister()->FindClassByType(Type);
 }
 #endif
 
-}    // namespace puerts
+}    // namespace PUERTS_NAMESPACE

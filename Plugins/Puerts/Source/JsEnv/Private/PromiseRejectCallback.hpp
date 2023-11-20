@@ -1,7 +1,14 @@
 #pragma once
 #include <sstream>
+#if !defined(PUERTS_NAMESPACE)
+#if defined(WITH_QJS_NAMESPACE_SUFFIX)
+#define PUERTS_NAMESPACE puerts_qjs
+#else
+#define PUERTS_NAMESPACE puerts
+#endif
+#endif
 
-namespace puerts
+namespace PUERTS_NAMESPACE
 {
 template <typename T>
 inline void __USE(T&&)
@@ -101,4 +108,4 @@ std::string StackTraceToString(v8::Isolate* InIsolate, v8::Local<v8::StackTrace>
 }
 #endif
 
-}    // namespace puerts
+}    // namespace PUERTS_NAMESPACE

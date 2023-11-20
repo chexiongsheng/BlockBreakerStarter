@@ -551,8 +551,6 @@ function watch(configFilePath:string) {
 
             let checker = program.getTypeChecker();
 
-            checker.getAliasedSymbol
-
             if (diagnostics.length > 0) {
                 logErrors(diagnostics);
             } else {
@@ -573,12 +571,12 @@ function watch(configFilePath:string) {
                                 UE.FileSystemOperation.WriteFile(output.name, output.text);
                             }
                             
-                            if (output.name.endsWith(".js")) {
+                            if (output.name.endsWith(".js") || output.name.endsWith(".mjs")) {
                                 jsSource = output.text;
                                 if (options.outDir && output.name.startsWith(options.outDir)) {
                                     moduleFileName = output.name.substr(options.outDir.length + 1);
                                     modulePath = tsi.getDirectoryPath(moduleFileName);
-                                    moduleFileName = tsi.removeExtension(moduleFileName, ".js");
+                                    moduleFileName = tsi.removeExtension(moduleFileName, output.name.endsWith(".js") ? ".js" : ".mjs");
                                 }
                             }
                         });
@@ -618,9 +616,17 @@ function watch(configFilePath:string) {
 
                                 if (baseTypeUClass) {
                                     if (isSubclassOf(type, "Subsystem")) {
-                                        console.warn("do not support Subsystem " + checker.typeToString(type));
+                                        console.error("do not support Subsystem " + checker.typeToString(type));
                                         return;
                                     }
+                                    if (!baseTypeUClass.IsNative()) {
+                                        let moduleNames = getModuleNames(baseTypes[0]);
+                                        if (moduleNames.length > 1 && moduleNames[0] == 'ue') {
+                                            console.error(`${checker.typeToString(type)} extends a blueprint`);
+                                            return;
+                                        }
+                                    }
+                                    
                                     foundType = type;
                                     foundBaseTypeUClass = baseTypeUClass;
                                 } else {

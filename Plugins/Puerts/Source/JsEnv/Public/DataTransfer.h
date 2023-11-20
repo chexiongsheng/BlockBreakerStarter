@@ -11,6 +11,7 @@
 #if USING_IN_UNREAL_ENGINE
 #include "CoreMinimal.h"
 #include "UObject/Package.h"
+#include "UObject/Class.h"
 #else
 #include "JSClassRegister.h"
 #endif
@@ -19,6 +20,8 @@
 #include "v8.h"
 #pragma warning(pop)
 
+#include "NamespaceDef.h"
+
 #if !defined(MAPPER_ISOLATE_DATA_POS)
 #define MAPPER_ISOLATE_DATA_POS 0
 #endif
@@ -26,7 +29,7 @@
 #define RELEASED_UOBJECT ((UObject*) 12)
 #define RELEASED_UOBJECT_MEMBER ((void*) 12)
 
-namespace puerts
+namespace PUERTS_NAMESPACE
 {
 template <typename T, typename FT, typename = void>
 struct TOuterLinker
@@ -226,7 +229,7 @@ public:
     {
         int P1 = Index << 1;
         int P2 = P1 + 1;
-        if (LIKELY(Object->InternalFieldCount() > P2))
+        if (V8_LIKELY(Object->InternalFieldCount() > P2))
         {
             return static_cast<T*>(MakeAddressWithHighPartOfTwo(
                 Object->GetAlignedPointerFromInternalField(P1), Object->GetAlignedPointerFromInternalField(P2)));
@@ -237,7 +240,7 @@ public:
     template <typename T>
     FORCEINLINE static T* GetPointerFast(v8::Local<v8::Object> Object)
     {
-        if (LIKELY(Object->InternalFieldCount() > 1))
+        if (V8_LIKELY(Object->InternalFieldCount() > 1))
         {
             return static_cast<T*>(MakeAddressWithHighPartOfTwo(
                 Object->GetAlignedPointerFromInternalField(0), Object->GetAlignedPointerFromInternalField(1)));
@@ -311,5 +314,41 @@ public:
     {
         TOuterLinker<T1, T2>::Link(Context, Outer, Inner);
     }
+
+    FORCEINLINE static v8::Local<v8::ArrayBuffer> NewArrayBuffer(v8::Local<v8::Context> Context, void* Data, size_t DataLength)
+    {
+#if defined(HAS_ARRAYBUFFER_NEW_WITHOUT_STL)
+        return v8::ArrayBuffer_New_Without_Stl(Context->GetIsolate(), Data, DataLength);
+#else
+#if USING_IN_UNREAL_ENGINE
+        return v8::ArrayBuffer::New(Context->GetIsolate(), Data, DataLength);
+#else
+        auto Backing = v8::ArrayBuffer::NewBackingStore(Data, DataLength, v8::BackingStore::EmptyDeleter, nullptr);
+        return v8::ArrayBuffer::New(Context->GetIsolate(), std::move(Backing));
+#endif
+#endif
+    }
+
+    FORCEINLINE static void* GetArrayBufferData(v8::Local<v8::ArrayBuffer> InArrayBuffer)
+    {
+        size_t DataLength;
+        return GetArrayBufferData(InArrayBuffer, DataLength);
+    }
+
+    FORCEINLINE static void* GetArrayBufferData(v8::Local<v8::ArrayBuffer> InArrayBuffer, size_t& DataLength)
+    {
+#if defined(HAS_ARRAYBUFFER_NEW_WITHOUT_STL)
+        return v8::ArrayBuffer_Get_Data(InArrayBuffer, DataLength);
+#else
+#if USING_IN_UNREAL_ENGINE
+        DataLength = InArrayBuffer->GetContents().ByteLength();
+        return InArrayBuffer->GetContents().Data();
+#else
+        auto BS = InArrayBuffer->GetBackingStore();
+        DataLength = BS->ByteLength();
+        return BS->Data();
+#endif
+#endif
+    }
 };
-}    // namespace puerts
+}    // namespace PUERTS_NAMESPACE

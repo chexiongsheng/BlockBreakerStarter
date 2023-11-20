@@ -40,6 +40,8 @@
 #include "Engine/SimpleConstructionScript.h"
 #include "Engine/SCS_Node.h"
 #include "Kismet2/ComponentEditorUtils.h"
+#include "Editor.h"
+#include "HAL/PlatformFileManager.h"
 
 #define LOCTEXT_NAMESPACE "UPEBlueprintAsset"
 
@@ -151,8 +153,6 @@ bool UPEBlueprintAsset::LoadOrCreate(
         ParentClass, Package, *InName, BlueprintType, BlueprintClass, BlueprintGeneratedClass, FName("PuertsAutoGen"));
     if (Blueprint)
     {
-        // static FName InterfaceClassName = FName(TEXT("TypeScriptObject"));
-        // FBlueprintEditorUtils::ImplementNewInterface(Blueprint, InterfaceClassName);
         // Notify the asset registry
         FAssetRegistryModule::AssetCreated(Blueprint);
 
@@ -1051,25 +1051,28 @@ void UPEBlueprintAsset::AddMemberVariable(FName NewVarName, FPEGraphPinType InGr
     uint64 InFlags = (uint64) InHFlags << 32 | InLFlags;
     FEdGraphPinType PinType = ToFEdGraphPinType(InGraphPinType, InPinValueType);
 
-    if (auto ComponentClass = Cast<UClass>(PinType.PinSubCategoryObject))
+    if (PinType.ContainerType == EPinContainerType::None)
     {
-        if (Blueprint->GeneratedClass->IsChildOf<AActor>() && Blueprint->SimpleConstructionScript &&
-            PinType.PinCategory == UEdGraphSchema_K2::PC_Object &&
-            (ComponentClass == UActorComponent::StaticClass() || ComponentClass->IsChildOf<UActorComponent>()))
+        if (auto ComponentClass = Cast<UClass>(PinType.PinSubCategoryObject))
         {
-            auto SCSNode = Blueprint->SimpleConstructionScript->FindSCSNode(NewVarName);
-            if (!SCSNode || SCSNode->ComponentClass != ComponentClass)
+            if (Blueprint->GeneratedClass->IsChildOf<AActor>() && Blueprint->SimpleConstructionScript &&
+                PinType.PinCategory == UEdGraphSchema_K2::PC_Object &&
+                (ComponentClass == UActorComponent::StaticClass() || ComponentClass->IsChildOf<UActorComponent>()))
             {
-                if (SCSNode)
+                auto SCSNode = Blueprint->SimpleConstructionScript->FindSCSNode(NewVarName);
+                if (!SCSNode || SCSNode->ComponentClass != ComponentClass)
                 {
-                    RemoveComponent(NewVarName);
+                    if (SCSNode)
+                    {
+                        RemoveComponent(NewVarName);
+                    }
+                    USCS_Node* NewSCSNode = Blueprint->SimpleConstructionScript->CreateNode(ComponentClass, NewVarName);
+                    Blueprint->SimpleConstructionScript->AddNode(NewSCSNode);
+                    NeedSave = true;
                 }
-                USCS_Node* NewSCSNode = Blueprint->SimpleConstructionScript->CreateNode(ComponentClass, NewVarName);
-                Blueprint->SimpleConstructionScript->AddNode(NewSCSNode);
-                NeedSave = true;
+                ComponentsAdded.Add(NewVarName);
+                return;
             }
-            ComponentsAdded.Add(NewVarName);
-            return;
         }
     }
 
@@ -1167,8 +1170,17 @@ void UPEBlueprintAsset::AddMemberVariableWithMetaData(FName InNewVarName, FPEGra
     }
     AddMemberVariable(InNewVarName, InGraphPinType, InPinValueType, InLFlags, InHFLags, InLifetimeCondition);
     const int32 VarIndex = FBlueprintEditorUtils::FindNewVariableIndex(Blueprint, InNewVarName);
-    if (VarIndex == INDEX_NONE || !IsValid(InMetaData))
+    if (VarIndex == INDEX_NONE)
     {
+        return;
+    }
+    if (!IsValid(InMetaData))
+    {
+        if (!InMetaData && Blueprint->NewVariables[VarIndex].MetaDataArray.Num() > 0)
+        {
+            NeedSave = true;
+            Blueprint->NewVariables[VarIndex].MetaDataArray.Empty();
+        }
         return;
     }
 
