@@ -1,6 +1,6 @@
 # BlockBreakerStarter
 
-* 这里下载[V8_8.4.371.19](https://github.com/puerts/backend-v8/releases/tag/V8_8.4.371.19_230426)，解压到[Plugins/Puerts/ThirdParty](Plugins/Puerts/ThirdParty)
+* 这里下载[V8_8.4.371.19](https://github.com/puerts/backend-v8/releases/tag/V8_8.4.371.19_230822)，解压到[Plugins/Puerts/ThirdParty](Plugins/Puerts/ThirdParty)
 
 * 生成vs工程（window下vs工程，在mac下生成xcode工程），然后进入工程运行
 
