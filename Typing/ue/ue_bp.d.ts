@@ -6,7 +6,7 @@ declare module "ue" {
 
     import * as UE from "ue"
 
-// __TYPE_DECL_START: 10D5FF6F4C5EC564090118B91CC0937B
+// __TYPE_DECL_START: 9740B5C44FA52339824626BAC5148FBF
     namespace Game.Blueprints.TypeScript.TS_BaseGun {
         class TS_BaseGun_C extends UE.Actor {
             constructor(Outer?: Object, Name?: string, ObjectFlags?: number);
@@ -17,6 +17,9 @@ declare module "ue" {
             FireRate: number;
             PS_BulletImpact: UE.ParticleSystem;
             ExecuteUbergraph_TS_BaseGun(EntryPoint: number) : void;
+            /*
+             *Event when play begins for this actor.
+             */
             ReceiveBeginPlay() : void;
             static StaticClass(): Class;
             static Find(OrigInName: string, Outer?: Object): TS_BaseGun_C;
@@ -28,7 +31,7 @@ declare module "ue" {
     }
 
 // __TYPE_DECL_END
-// __TYPE_DECL_START: 330C2ACE4E687F3AD7ED4EACF9587777
+// __TYPE_DECL_START: BB14998844A0424B8120938BB31E9612
     namespace Game.Blueprints.TypeScript.TS_Player {
         class TS_Player_C extends UE.Character {
             constructor(Outer?: Object, Name?: string, ObjectFlags?: number);
@@ -43,6 +46,9 @@ declare module "ue" {
             InpAxisEvt_MoveForward_K2Node_InputAxisEvent_0(AxisValue: number) : void;
             InpAxisEvt_MoveRight_K2Node_InputAxisEvent_1(AxisValue: number) : void;
             InpAxisEvt_Shoot_K2Node_InputAxisEvent_4(AxisValue: number) : void;
+            /*
+             *Event when play begins for this actor.
+             */
             ReceiveBeginPlay() : void;
             static StaticClass(): Class;
             static Find(OrigInName: string, Outer?: Object): TS_Player_C;
@@ -60,6 +66,9 @@ declare module "ue" {
             constructor(Outer?: Object, Name?: string, ObjectFlags?: number);
             UberGraphFrame: UE.PointerToUberGraphFrame;
             ExecuteUbergraph_TS_Rifle(EntryPoint: number) : void;
+            /*
+             *Event when play begins for this actor.
+             */
             ReceiveBeginPlay() : void;
             static StaticClass(): Class;
             static Find(OrigInName: string, Outer?: Object): TS_Rifle_C;
@@ -83,6 +92,9 @@ declare module "ue" {
             Health: number;
             MaxHealth: number;
             ExecuteUbergraph_BP_Target(EntryPoint: number) : void;
+            /*
+             *Event when play begins for this actor.
+             */
             ReceiveBeginPlay() : void;
             Reset() : void;
             TakeDamage(Damage: number) : void;
@@ -121,6 +133,9 @@ declare module "ue" {
             UberGraphFrame: UE.PointerToUberGraphFrame;
             DefaultSceneRoot: UE.SceneComponent;
             ExecuteUbergraph_GM_Tutorial(EntryPoint: number) : void;
+            /*
+             *Event when play begins for this actor.
+             */
             ReceiveBeginPlay() : void;
             static StaticClass(): Class;
             static Find(OrigInName: string, Outer?: Object): GM_Tutorial_C;

@@ -24,8 +24,9 @@ class TS_BaseGun extends UE.Actor {
         if (UE.KismetSystemLibrary.LineTraceSingle(this, StartLocation, EndLocation, 0, false, undefined, 0, hitResultOut, true, undefined, undefined, 0)) {
             let hitResult = $unref(hitResultOut);
             UE.GameplayStatics.SpawnEmitterAtLocation(this, this.PS_BulletImpact, hitResult.Location, new UE.Rotator(0, 0, 0), new UE.Vector(1, 1, 1), true, UE.EPSCPoolMethod.AutoRelease, true);
-            if (hitResult.Actor) {
-                UE.GameplayStatics.ApplyDamage(hitResult.Actor, this.Damage, undefined, undefined, undefined);
+            let hitActor = hitResult.GetActor();
+            if (hitActor) {
+                UE.GameplayStatics.ApplyDamage(hitActor, this.Damage, undefined, undefined, undefined);
             }
         }
     }

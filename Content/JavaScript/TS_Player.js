@@ -16,6 +16,10 @@ function delay(t) {
     });
 }
 class TS_Player extends UE.Character {
+    FpsCamera;
+    EquippedGun;
+    GunLocation;
+    CanShoot;
     Constructor() {
         this.CanShoot = true;
     }
@@ -32,9 +36,9 @@ class TS_Player extends UE.Character {
         this.AddControllerPitchInput(axisValue * -1);
     }
     ReceiveBeginPlay() {
-        this.FpsCamera.K2_SetRelativeLocationAndRotation(new UE.Vector(0, 0, 90), undefined, false, puerts_1.$ref(undefined), false);
+        this.FpsCamera.K2_SetRelativeLocationAndRotation(new UE.Vector(0, 0, 90), undefined, false, (0, puerts_1.$ref)(undefined), false);
         this.FpsCamera.bUsePawnControlRotation = true;
-        this.GunLocation.K2_SetRelativeLocationAndRotation(new UE.Vector(30, 14, -12), new UE.Rotator(0, 95, 0), false, puerts_1.$ref(undefined), false);
+        this.GunLocation.K2_SetRelativeLocationAndRotation(new UE.Vector(30, 14, -12), new UE.Rotator(0, 95, 0), false, (0, puerts_1.$ref)(undefined), false);
         let ucls = UE.Class.Load("/Game/Blueprints/TypeScript/TS_Rifle.TS_Rifle_C");
         this.EquippedGun = UE.GameplayStatics.BeginDeferredActorSpawnFromClass(this, ucls, undefined, UE.ESpawnActorCollisionHandlingMethod.Undefined, this);
         UE.GameplayStatics.FinishSpawningActor(this.EquippedGun, undefined);
