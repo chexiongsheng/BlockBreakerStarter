@@ -17,12 +17,6 @@
 #include "PropertyTranslator.h"
 #include "FunctionTranslator.h"
 #include "JSClassRegister.h"
-
-#pragma warning(push, 0)
-#include "libplatform/libplatform.h"
-#include "v8.h"
-#pragma warning(pop)
-
 #include "NamespaceDef.h"
 
 #define PUERTS_REUSE_STRUCTWRAPPER_FUNCTIONTEMPLATE 1
@@ -81,13 +75,19 @@ protected:
 
     std::vector<UFunction*> ExtensionMethods;
 
-    InitializeFunc ExternalInitialize;
+    typedef void* (*V8InitializeFuncType)(const v8::FunctionCallbackInfo<v8::Value>& Info);
 
-    FinalizeFunc ExternalFinalize;
+    V8InitializeFuncType ExternalInitialize;
+
+    pesapi_finalize ExternalFinalize;
 
     TWeakObjectPtr<UStruct> Struct;
 
+#if PUERTS_KEEP_UOBJECT_REFERENCE
     bool IsNativeTakeJsRef = false;
+#else
+    bool IsNativeTakeJsRef = true;
+#endif
 
     bool IsTypeScriptGeneratedClass = false;
 
@@ -113,7 +113,7 @@ public:
 
     static void* Alloc(UScriptStruct* InScriptStruct);
 
-    static void Free(TWeakObjectPtr<UStruct> InStruct, FinalizeFunc InExternalFinalize, void* Ptr);
+    static void Free(TWeakObjectPtr<UStruct> InStruct, pesapi_finalize InExternalFinalize, void* Ptr);
 
     void Free(void* Ptr)
     {

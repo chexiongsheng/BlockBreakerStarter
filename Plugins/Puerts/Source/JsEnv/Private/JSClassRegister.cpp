@@ -77,6 +77,29 @@ public:
 
     const JSClassDefinition* FindClassByID(const void* TypeId);
 
+    void OnClassNotFound(pesapi_class_not_found_callback InCallback)
+    {
+        ClassNotFoundCallback = InCallback;
+    }
+
+    const JSClassDefinition* LoadClassByID(const void* TypeId)
+    {
+        if (!TypeId)
+        {
+            return nullptr;
+        }
+        auto clsDef = FindClassByID(TypeId);
+        if (!clsDef && ClassNotFoundCallback)
+        {
+            if (!ClassNotFoundCallback(TypeId))
+            {
+                return nullptr;
+            }
+            clsDef = FindClassByID(TypeId);
+        }
+        return clsDef;
+    }
+
     const JSClassDefinition* FindCppTypeClassByName(const std::string& Name);
 
 #if USING_IN_UNREAL_ENGINE
@@ -90,6 +113,7 @@ public:
 private:
     std::map<const void*, JSClassDefinition*> CDataIdToClassDefinition;
     std::map<std::string, JSClassDefinition*> CDataNameToClassDefinition;
+    pesapi_class_not_found_callback ClassNotFoundCallback = nullptr;
 #if USING_IN_UNREAL_ENGINE
     std::map<std::string, AddonRegisterFunc> AddonRegisterInfos;
     std::map<FString, JSClassDefinition*> StructNameToClassDefinition;
@@ -193,6 +217,10 @@ void JSClassRegister::SetClassTypeInfo(const void* TypeId, const NamedFunctionIn
 
 const JSClassDefinition* JSClassRegister::FindClassByID(const void* TypeId)
 {
+    if (!TypeId)
+    {
+        return nullptr;
+    }
     auto Iter = CDataIdToClassDefinition.find(TypeId);
     if (Iter == CDataIdToClassDefinition.end())
     {
@@ -291,12 +319,60 @@ const JSClassDefinition* FindClassByID(const void* TypeId)
     return GetJSClassRegister()->FindClassByID(TypeId);
 }
 
+void OnClassNotFound(pesapi_class_not_found_callback Callback)
+{
+    GetJSClassRegister()->OnClassNotFound(Callback);
+}
+
+const JSClassDefinition* LoadClassByID(const void* TypeId)
+{
+    return GetJSClassRegister()->LoadClassByID(TypeId);
+}
+
 const JSClassDefinition* FindCppTypeClassByName(const std::string& Name)
 {
     return GetJSClassRegister()->FindCppTypeClassByName(Name);
 }
 
+bool TraceObjectLifecycle(const void* TypeId, pesapi_on_native_object_enter OnEnter, pesapi_on_native_object_exit OnExit)
+{
+    if (auto clsDef = const_cast<JSClassDefinition*>(GetJSClassRegister()->FindClassByID(TypeId)))
+    {
+        clsDef->OnEnter = OnEnter;
+        clsDef->OnExit = OnExit;
+        return true;
+    }
+    return false;
+}
+
 #if USING_IN_UNREAL_ENGINE
+
+bool IsEditorOnlyUFunction(const UFunction* Func)
+{
+    // a simplified version of IsEditorOnlyObject(), sadly it's a EditorOnly Function so I have to reimplement a toy one
+    if (!Func)
+    {
+        return false;
+    }
+    if (Func->HasAnyFunctionFlags(FUNC_EditorOnly))
+    {
+        return true;
+    }
+    auto InObject = Func;
+    if (InObject->HasAnyMarks(OBJECTMARK_EditorOnly) || InObject->IsEditorOnly())
+    {
+        return true;
+    }
+
+    auto Package = Func->GetPackage();
+    if (Package && Package->HasAnyPackageFlags(PKG_EditorOnly))
+    {
+        return true;
+    }
+
+    return false;
+}
+
 void RegisterAddon(const char* Name, AddonRegisterFunc RegisterFunc)
 {
     GetJSClassRegister()->RegisterAddon(Name, RegisterFunc);

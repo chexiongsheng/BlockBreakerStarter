@@ -16,14 +16,20 @@
 #include "JSClassRegister.h"
 #endif
 
+#include "NamespaceDef.h"
+
+PRAGMA_DISABLE_UNDEFINED_IDENTIFIER_WARNINGS
 #pragma warning(push, 0)
 #include "v8.h"
 #pragma warning(pop)
-
-#include "NamespaceDef.h"
+PRAGMA_ENABLE_UNDEFINED_IDENTIFIER_WARNINGS
 
 #if !defined(MAPPER_ISOLATE_DATA_POS)
 #define MAPPER_ISOLATE_DATA_POS 0
+#endif
+
+#ifndef PESAPI_PRIVATE_DATA_POS_IN_ISOLATE
+#define PESAPI_PRIVATE_DATA_POS_IN_ISOLATE (MAPPER_ISOLATE_DATA_POS + 1)
 #endif
 
 #define RELEASED_UOBJECT ((UObject*) 12)
@@ -264,6 +270,16 @@ public:
     FORCEINLINE static T* IsolateData(v8::Isolate* Isolate)
     {
         return static_cast<T*>(Isolate->GetData(MAPPER_ISOLATE_DATA_POS));
+    }
+
+    FORCEINLINE static void* GetIsolatePrivateData(v8::Isolate* Isolate)
+    {
+        return Isolate->GetData(PESAPI_PRIVATE_DATA_POS_IN_ISOLATE);
+    }
+
+    FORCEINLINE static void SetIsolatePrivateData(v8::Isolate* Isolate, void* PrivateData)
+    {
+        Isolate->SetData(PESAPI_PRIVATE_DATA_POS_IN_ISOLATE, PrivateData);
     }
 
     static v8::Local<v8::Value> FindOrAddCData(

@@ -68,18 +68,34 @@
     }                                                                       \
     UsingNamedCppType(CLS, CLS)
 
+#if ENGINE_MAJOR_VERSION >= 5 && ENGINE_MINOR_VERSION >= 4
+#define RegisterTArray(CLS)                                                                                                        \
+    PUERTS_NAMESPACE::DefineClass<TArray<CLS>>()                                                                                   \
+        .Method("Add", SelectFunction(int (TArray<CLS>::*)(CLS const&), &TArray<CLS>::Add))                                        \
+        .Method("Get", SelectFunction(CLS& (TArray<CLS>::*) (int), &TArray<CLS>::operator[]))                                      \
+        .Method("GetRef", SelectFunction(CLS& (TArray<CLS>::*) (int), &TArray<CLS>::operator[]))                                   \
+        .Method("Num", MakeFunction(&TArray<CLS>::Num))                                                                            \
+        .Method("Contains", MakeFunction(&TArray<CLS>::Contains<CLS>))                                                             \
+        .Method("FindIndex", SelectFunction(int (TArray<CLS>::*)(CLS const&) const, &TArray<CLS>::Find))                           \
+        .Method(                                                                                                                   \
+            "RemoveAt", SelectFunction(void (TArray<CLS>::*)(int, /* New param in 5.4*/ EAllowShrinking), &TArray<CLS>::RemoveAt)) \
+        .Method("IsValidIndex", MakeFunction(&TArray<CLS>::IsValidIndex))                                                          \
+        .Method("Empty", MakeFunction(&TArray<CLS>::Empty))                                                                        \
+        .Register()
+#else
 #define RegisterTArray(CLS)                                                                              \
     PUERTS_NAMESPACE::DefineClass<TArray<CLS>>()                                                         \
-        .Method("Add", SelectFunction(int (TArray<CLS>::*)(const CLS&), &TArray<CLS>::Add))              \
+        .Method("Add", SelectFunction(int (TArray<CLS>::*)(CLS const&), &TArray<CLS>::Add))              \
         .Method("Get", SelectFunction(CLS& (TArray<CLS>::*) (int), &TArray<CLS>::operator[]))            \
         .Method("GetRef", SelectFunction(CLS& (TArray<CLS>::*) (int), &TArray<CLS>::operator[]))         \
         .Method("Num", MakeFunction(&TArray<CLS>::Num))                                                  \
         .Method("Contains", MakeFunction(&TArray<CLS>::Contains<CLS>))                                   \
-        .Method("FindIndex", SelectFunction(int (TArray<CLS>::*)(const CLS&) const, &TArray<CLS>::Find)) \
+        .Method("FindIndex", SelectFunction(int (TArray<CLS>::*)(CLS const&) const, &TArray<CLS>::Find)) \
         .Method("RemoveAt", SelectFunction(void (TArray<CLS>::*)(int), &TArray<CLS>::RemoveAt))          \
         .Method("IsValidIndex", MakeFunction(&TArray<CLS>::IsValidIndex))                                \
         .Method("Empty", MakeFunction(&TArray<CLS>::Empty))                                              \
         .Register()
+#endif
 
 #define UsingUStruct(CLS) UsingUClass(CLS)
 
@@ -303,7 +319,8 @@ struct Converter<T*, typename std::enable_if<std::is_convertible<T*, const UObje
 {
     static v8::Local<v8::Value> toScript(v8::Local<v8::Context> context, T* value)
     {
-        return DataTransfer::FindOrAddObject<T>(context->GetIsolate(), context, value);
+        using TypeWithoutConst = typename std::remove_const<T>::type;
+        return DataTransfer::FindOrAddObject<TypeWithoutConst>(context->GetIsolate(), context, (TypeWithoutConst*) (value));
     }
 
     static T* toCpp(v8::Local<v8::Context> context, const v8::Local<v8::Value>& value)

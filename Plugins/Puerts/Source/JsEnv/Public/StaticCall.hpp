@@ -345,8 +345,7 @@ private:
     {
         static typename API::ValueType Convert(typename API::ContextType context, T ret)
         {
-            return DecayTypeConverter<typename std::remove_reference<T>::type>::toScript(
-                context, std::forward<typename std::remove_reference<T>::type>(ret));
+            return DecayTypeConverter<typename std::remove_reference<T>::type>::toScript(context, std::forward<T>(ret));
         }
     };
 
@@ -356,9 +355,10 @@ private:
                                 (is_objecttype<typename std::decay<T>::type>::value ||
                                     is_uetype<typename std::decay<T>::type>::value)>::type>
     {
-        static typename API::ValueType Convert(typename API::ContextType context, typename std::decay<T>::type ret)
+        static typename API::ValueType Convert(typename API::ContextType context, const typename std::decay<T>::type& ret)
         {
-            return DecayTypeConverter<typename std::decay<T>::type*>::toScript(context, &ret);
+            return DecayTypeConverter<typename std::decay<T>::type*>::toScript(
+                context, &(const_cast<typename std::decay<T>::type&>(ret)));
         }
     };
 
@@ -509,11 +509,12 @@ private:
 
     template <typename T>
     struct ArgumentHolder<T,
-        typename std::enable_if<ScriptTypePtrAsRef && is_script_type<typename std::remove_pointer<T>::type>::value &&
-                                !std::is_const<typename std::remove_pointer<T>::type>::value && std::is_pointer<T>::value>::type>
+        typename std::enable_if<ScriptTypePtrAsRef &&
+                                is_script_type<typename std::remove_const<typename std::remove_pointer<T>::type>::type>::value &&
+                                !API::template CustomArgumentBufferType<T>::enable && std::is_pointer<T>::value>::type>
     {
         T Arg = nullptr;
-        using BuffType = typename std::remove_pointer<T>::type;
+        using BuffType = typename std::remove_const<typename std::remove_pointer<T>::type>::type;
         BuffType Buf;
 
         ArgumentHolder(std::tuple<typename API::ContextType, typename API::ValueType> info)
@@ -534,8 +535,9 @@ private:
 
     template <typename T>
     struct ArgumentHolder<T,
-        typename std::enable_if<!ScriptTypePtrAsRef && is_script_type<typename std::remove_pointer<T>::type>::value &&
-                                !std::is_const<typename std::remove_pointer<T>::type>::value && std::is_pointer<T>::value>::type>
+        typename std::enable_if<!ScriptTypePtrAsRef &&
+                                is_script_type<typename std::remove_const<typename std::remove_pointer<T>::type>::type>::value &&
+                                !API::template CustomArgumentBufferType<T>::enable && std::is_pointer<T>::value>::type>
     {
         T Arg = nullptr;
 
@@ -781,7 +783,7 @@ private:
             return false;
 
         ArgumentsHolder cppArgHolders(
-            std::tuple<typename API::ContextType, typename API::ValueType>{context, GetArg(info, index)}...);
+            std::tuple<typename API::ContextType, typename API::ValueType>{context, API::GetArg(info, index)}...);
 
         DefaultValueSetter<sizeof...(Args) - sizeof...(DefaultArguments), 0, typename std::decay<Args>::type...>::Set(
             cppArgHolders, API::GetArgsLen(info), std::forward<DefaultArguments>(defaultValues)...);
@@ -813,10 +815,10 @@ private:
             return false;
 
         ArgumentsHolder cppArgHolders(
-            std::tuple<typename API::ContextType, typename API::ValueType>{context, GetArg(info, index)}...);
+            std::tuple<typename API::ContextType, typename API::ValueType>{context, API::GetArg(info, index)}...);
 
         DefaultValueSetter<sizeof...(Args) - sizeof...(DefaultArguments), 0, typename std::decay<Args>::type...>::Set(
-            cppArgHolders, GetArgsLen(info), std::forward<DefaultArguments>(defaultValues)...);
+            cppArgHolders, API::GetArgsLen(info), std::forward<DefaultArguments>(defaultValues)...);
 
         API::SetReturn(
             info, ReturnConverter<Ret>::Convert(context,
@@ -1456,6 +1458,164 @@ struct PropertyWrapper<API, Ret*, Variable>
     }
 };
 
+template <typename API, typename TG, TG, typename Enable = void>
+struct PropertyGetterWrapper;
+
+template <typename API, typename Ret, Ret (*fgetter)()>
+struct PropertyGetterWrapper<API, Ret (*)(), fgetter>
+{
+    template <typename T>
+    using DecayTypeConverter = typename API::template Converter<typename internal::ConverterDecay<T>::type>;
+
+    static void getter(typename API::CallbackInfoType info)
+    {
+        auto context = API::GetContext(info);
+        API::SetReturn(info, DecayTypeConverter<Ret>::toScript(context, fgetter()));
+    }
+};
+
+template <typename API, typename Ret, typename Ins, Ret (Ins::*func)()>
+struct PropertyGetterWrapper<API, Ret (Ins::*)(), func>
+{
+    template <typename T>
+    using DecayTypeConverter = typename API::template Converter<typename internal::ConverterDecay<T>::type>;
+
+    static void getter(typename API::CallbackInfoType info)
+    {
+        auto context = API::GetContext(info);
+        auto self = DecayTypeConverter<Ins*>::toCpp(context, API::GetThis(info));
+        if (!self)
+        {
+            API::ThrowException(info, "access a null object");
+            return;
+        }
+
+        API::SetReturn(info, API::template Converter<Ret>::toScript(context, (self->*func)()));
+    }
+};
+
+template <typename API, typename Ret, typename Ins, Ret (Ins::*func)() const>
+struct PropertyGetterWrapper<API, Ret (Ins::*)() const, func>
+{
+    template <typename T>
+    using DecayTypeConverter = typename API::template Converter<typename internal::ConverterDecay<T>::type>;
+
+    static void getter(typename API::CallbackInfoType info)
+    {
+        auto context = API::GetContext(info);
+        auto self = DecayTypeConverter<Ins*>::toCpp(context, API::GetThis(info));
+        if (!self)
+        {
+            API::ThrowException(info, "access a null object");
+            return;
+        }
+
+        API::SetReturn(info, API::template Converter<Ret>::toScript(context, (self->*func)()));
+    }
+};
+
+template <typename API>
+struct PropertyGetterWrapper<API, decltype(nullptr), nullptr>
+{
+    static void getter(typename API::CallbackInfoType info)
+    {
+        API::ThrowException(info, "not getter for this property!");
+    }
+};
+
+template <typename API, typename TS, TS, typename Enable = void>
+struct PropertySetterWrapper;
+
+template <typename API, typename TS, void (*fsetter)(TS)>
+struct PropertySetterWrapper<API, void (*)(TS), fsetter>
+{
+    template <typename T>
+    using DecayTypeConverter = typename API::template Converter<typename internal::ConverterDecay<T>::type>;
+
+    static void setter(typename API::CallbackInfoType info)
+    {
+        auto context = API::GetContext(info);
+        fsetter(DecayTypeConverter<TS>::toCpp(context, API::GetArg(info, 0)));
+    }
+};
+
+template <typename API, typename TS, typename Ins, void (Ins::*func)(TS)>
+struct PropertySetterWrapper<API, void (Ins::*)(TS), func>
+{
+    template <typename T>
+    using DecayTypeConverter = typename API::template Converter<typename internal::ConverterDecay<T>::type>;
+
+    static void setter(typename API::CallbackInfoType info)
+    {
+        auto context = API::GetContext(info);
+        auto self = DecayTypeConverter<Ins*>::toCpp(context, API::GetThis(info));
+        if (!self)
+        {
+            API::ThrowException(info, "access a null object");
+            return;
+        }
+
+        (self->*func)(DecayTypeConverter<TS>::toCpp(context, API::GetArg(info, 0)));
+    }
+};
+
+template <typename API>
+struct PropertySetterWrapper<API, decltype(nullptr), nullptr>
+{
+    static void setter(typename API::CallbackInfoType info)
+    {
+        API::ThrowException(info, "not setter for this property!");
+    }
+};
+
+template <typename API, typename TG, typename TS>
+struct PropertyGetterSetterInfo;
+
+template <typename API, typename Ret, typename TS>
+struct PropertyGetterSetterInfo<API, Ret (*)(), TS>
+{
+    static const CTypeInfo* info()
+    {
+        return CTypeInfoImpl<Ret, false>::get();
+    }
+};
+
+template <typename API, typename Ins, typename Ret, typename TS>
+struct PropertyGetterSetterInfo<API, Ret (Ins::*)(), TS>
+{
+    static const CTypeInfo* info()
+    {
+        return CTypeInfoImpl<Ret, false>::get();
+    }
+};
+
+template <typename API, typename Ins, typename Ret, typename TS>
+struct PropertyGetterSetterInfo<API, Ret (Ins::*)() const, TS>
+{
+    static const CTypeInfo* info()
+    {
+        return CTypeInfoImpl<Ret, false>::get();
+    }
+};
+
+template <typename API, typename Ret, typename TG>
+struct PropertyGetterSetterInfo<API, TG, void (*)(Ret)>
+{
+    static const CTypeInfo* info()
+    {
+        return CTypeInfoImpl<Ret, false>::get();
+    }
+};
+
+template <typename API, typename Ins, typename Ret, typename TG>
+struct PropertyGetterSetterInfo<API, TG, void (Ins::*)(Ret)>
+{
+    static const CTypeInfo* info()
+    {
+        return CTypeInfoImpl<Ret, false>::get();
+    }
+};
+
 template <typename T, typename API, typename RegisterAPI>
 class ClassDefineBuilder
 {
@@ -1522,7 +1682,7 @@ public:
         {
             functionInfos_.push_back(typename API::GeneralFunctionReflectionInfo{name, info});
         }
-        functions_.push_back(typename API::GeneralFunctionInfo{name, func, nullptr, info});
+        functions_.push_back(typename API::GeneralFunctionInfo(name, func, nullptr, info));
         return *this;
     }
 
@@ -1533,7 +1693,7 @@ public:
         {
             functionInfos_.push_back(typename API::GeneralFunctionReflectionInfo{name, infos[i]});
         }
-        functions_.push_back(typename API::GeneralFunctionInfo{name, func, nullptr, nullptr});
+        functions_.push_back(typename API::GeneralFunctionInfo(name, func, nullptr, nullptr));
         return *this;
     }
 
@@ -1544,7 +1704,7 @@ public:
         {
             methodInfos_.push_back(typename API::GeneralFunctionReflectionInfo{name, info});
         }
-        methods_.push_back(typename API::GeneralFunctionInfo{name, func, nullptr, info});
+        methods_.push_back(typename API::GeneralFunctionInfo(name, func, nullptr, info));
         return *this;
     }
 
@@ -1555,23 +1715,22 @@ public:
         {
             methodInfos_.push_back(typename API::GeneralFunctionReflectionInfo{name, infos[i]});
         }
-        methods_.push_back(typename API::GeneralFunctionInfo{name, func, nullptr, nullptr});
+        methods_.push_back(typename API::GeneralFunctionInfo(name, func, nullptr, nullptr));
         return *this;
     }
 
     template <typename Func, Func func>
     ClassDefineBuilder<T, API, RegisterAPI>& MethodProxy(const char* name)
     {
-        methods_.push_back(typename API::GeneralFunctionInfo{name,
-            [](typename API::CallbackInfoType info) -> void
-            {
-                using Helper = internal::FuncCallHelper<API,
-                    std::pair<typename internal::traits::FunctionTrait<Func>::ReturnType,
-                        typename internal::traits::FunctionTrait<Func>::Arguments>,
-                    false, false, true, false>;
-                Helper::template callMethod<T>(func, info);
-            },
-            nullptr, nullptr});
+        typename API::FunctionCallbackType proxyed = [](typename API::CallbackInfoType info) -> void
+        {
+            using Helper = internal::FuncCallHelper<API,
+                std::pair<typename internal::traits::FunctionTrait<Func>::ReturnType,
+                    typename internal::traits::FunctionTrait<Func>::Arguments>,
+                false, false, true, false>;
+            Helper::template callMethod<T>(func, info);
+        };
+        methods_.push_back(typename API::GeneralFunctionInfo(name, proxyed, nullptr, nullptr));
         return *this;
     }
 
@@ -1582,15 +1741,15 @@ public:
         {
             propertyInfos_.push_back(typename API::GeneralPropertyReflectionInfo{name, type});
         }
-        properties_.push_back(typename API::GeneralPropertyInfo{name, getter, setter, nullptr});
+        properties_.push_back(typename API::GeneralPropertyInfo(name, getter, setter, nullptr, nullptr));
         return *this;
     }
 
     template <typename Prop, Prop prop>
     ClassDefineBuilder<T, API, RegisterAPI>& PropertyProxy(const char* name)
     {
-        properties_.push_back(typename API::GeneralPropertyInfo{
-            name, &PropertyWrapper<API, Prop, prop, T>::getter, &PropertyWrapper<API, Prop, prop, T>::setter, nullptr});
+        properties_.push_back(typename API::GeneralPropertyInfo(
+            name, &PropertyWrapper<API, Prop, prop, T>::getter, &PropertyWrapper<API, Prop, prop, T>::setter, nullptr, nullptr));
         return *this;
     }
 
@@ -1601,11 +1760,11 @@ public:
         {
             variableInfos_.push_back(typename API::GeneralPropertyReflectionInfo{name, type});
         }
-        variables_.push_back(typename API::GeneralPropertyInfo{name, getter, setter, nullptr});
+        variables_.push_back(typename API::GeneralPropertyInfo(name, getter, setter, nullptr, nullptr));
         return *this;
     }
 
-    typedef void (*FinalizeFuncType)(void* Ptr);
+    typedef void (*FinalizeFuncType)(void* Ptr, void* ClassData, void* EnvData);
 
     template <class FC, typename Enable = void>
     struct FinalizeBuilder
@@ -1621,13 +1780,18 @@ public:
     {
         static FinalizeFuncType Build()
         {
-            return [](void* Ptr) { delete static_cast<FC*>(Ptr); };
+            return [](void* Ptr, void* ClassData, void* EnvData) { delete static_cast<FC*>(Ptr); };
         }
     };
 
     void Register()
     {
-        RegisterAPI::template Register<T>(FinalizeBuilder<T>::Build(), *this);
+        Register(FinalizeBuilder<T>::Build());
+    }
+
+    void Register(FinalizeFuncType Finalize)
+    {
+        RegisterAPI::template Register<T>(Finalize, *this);
     }
 };
 

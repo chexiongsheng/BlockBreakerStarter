@@ -186,7 +186,7 @@ static void* _FTransformNew_(const v8::FunctionCallbackInfo<v8::Value>& Info)
     return nullptr;
 }
 
-static void _FTransformDelete_(void* Ptr)
+static void _FTransformDelete_(void* Ptr, void* ClassData, void* EnvData)
 {
     FTransform* Self = static_cast<FTransform*>(Ptr);
     // UE_LOG(LogTemp, Warning, TEXT("_FTransformDelete_:%p"), Self);
@@ -2461,7 +2461,7 @@ struct AutoRegisterForFTransform
 
         Def.UETypeName = "Transform";
 
-        Def.Initialize = _FTransformNew_;
+        Def.SetInitialize(_FTransformNew_);
         Def.Finalize = _FTransformDelete_;
         Def.Properties = Properties;
         Def.Methods = Methods;

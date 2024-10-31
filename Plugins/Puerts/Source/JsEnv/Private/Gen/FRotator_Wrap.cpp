@@ -88,7 +88,7 @@ static void* _FRotatorNew_(const v8::FunctionCallbackInfo<v8::Value>& Info)
     return nullptr;
 }
 
-static void _FRotatorDelete_(void* Ptr)
+static void _FRotatorDelete_(void* Ptr, void* ClassData, void* EnvData)
 {
     FRotator* Self = static_cast<FRotator*>(Ptr);
     // UE_LOG(LogTemp, Warning, TEXT("_FRotatorDelete_:%p"), Self);
@@ -1235,7 +1235,7 @@ struct AutoRegisterForFRotator
 
         Def.UETypeName = "Rotator";
 
-        Def.Initialize = _FRotatorNew_;
+        Def.SetInitialize(_FRotatorNew_);
         Def.Finalize = _FRotatorDelete_;
         Def.Properties = Properties;
         Def.Methods = Methods;

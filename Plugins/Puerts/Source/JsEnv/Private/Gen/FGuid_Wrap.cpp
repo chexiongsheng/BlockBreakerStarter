@@ -45,7 +45,7 @@ static void* _FGuidNew_(const v8::FunctionCallbackInfo<v8::Value>& Info)
     return nullptr;
 }
 
-static void _FGuidDelete_(void* Ptr)
+static void _FGuidDelete_(void* Ptr, void* ClassData, void* EnvData)
 {
     FGuid* Self = static_cast<FGuid*>(Ptr);
     // UE_LOG(LogTemp, Warning, TEXT("_FGuidDelete_:%p"), Self);
@@ -411,7 +411,7 @@ struct AutoRegisterForFGuid
 
         Def.UETypeName = "Guid";
 
-        Def.Initialize = _FGuidNew_;
+        Def.SetInitialize(_FGuidNew_);
         Def.Finalize = _FGuidDelete_;
         Def.Properties = Properties;
         Def.Methods = Methods;

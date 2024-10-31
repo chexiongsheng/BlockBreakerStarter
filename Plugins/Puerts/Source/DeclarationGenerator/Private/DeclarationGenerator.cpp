@@ -511,7 +511,8 @@ void FTypeScriptDeclarationGenerator::NamespaceEnd(UObject* Obj, FStringBuffer& 
 void FTypeScriptDeclarationGenerator::WriteOutput(UObject* Obj, const FStringBuffer& Buff)
 {
     const UPackage* Pkg = GetPackage(Obj);
-    if (Pkg && !Obj->IsNative() && BlueprintTypeDeclInfoCache.Find(Pkg->GetFName()))
+    bool IsPluginBPClass = Pkg && !Obj->IsNative() && !Pkg->GetName().StartsWith(TEXT("/Game/"));
+    if (Pkg && !Obj->IsNative() && !IsPluginBPClass && BlueprintTypeDeclInfoCache.Find(Pkg->GetFName()))
     {
         FStringBuffer Temp;
         Temp.Prefix = Output.Prefix;
@@ -521,7 +522,7 @@ void FTypeScriptDeclarationGenerator::WriteOutput(UObject* Obj, const FStringBuf
         BlueprintTypeDeclInfoCache[Pkg->GetFName()].NameToDecl.Add(Obj->GetFName(), Temp.Buffer);
         BlueprintTypeDeclInfoCache[Pkg->GetFName()].IsExist = true;
     }
-    else if (Obj->IsNative())
+    else if (Obj->IsNative() || IsPluginBPClass)
     {
         NamespaceBegin(Obj, Output);
         Output << Buff;
@@ -602,6 +603,7 @@ void FTypeScriptDeclarationGenerator::LoadAllWidgetBlueprint(FName InSearchPath,
 
     FARFilter BPFilter;
     BPFilter.PackagePaths.Add(PackagePath);
+    BPFilter.PackagePaths.Add(FName(TEXT("/Engine")));
     BPFilter.bRecursivePaths = true;
     BPFilter.bRecursiveClasses = true;
 #if ENGINE_MAJOR_VERSION >= 5 && ENGINE_MINOR_VERSION > 0
@@ -894,10 +896,38 @@ bool FTypeScriptDeclarationGenerator::GenFunction(
             OwnerBuffer << "static ";
         }
 
-        OwnerBuffer << SafeFieldName(Function->GetName());
+        FString FuncName = Function->GetName();
+#ifdef PUERTS_WITH_EDITOR_SUFFIX
+        if (puerts::IsEditorOnlyUFunction(Function))
+        {
+            FuncName += EditorOnlyPropertySuffix;
+        }
+#endif
+        OwnerBuffer << SafeFieldName(FuncName);
     }
     OwnerBuffer << "(";
     PropertyMacro* ReturnValue = nullptr;
+
+    TSet<FString> NameDeDupSet{};
+    auto const DeDup = [&NameDeDupSet](FString const& Name)
+    {
+        if (!NameDeDupSet.Contains(Name))
+        {
+            NameDeDupSet.Add(Name);
+            return Name;
+        }
+
+        int Cnt = 1;
+        FString NewName = FString::Printf(TEXT("%s_%d"), *Name, Cnt);
+        while (NameDeDupSet.Contains(NewName))
+        {
+            Cnt++;
+            NewName = FString::Printf(TEXT("%s_%d"), *Name, Cnt);
+        }
+
+        return NewName;
+    };
+
     TArray<UObject*> RefTypes;
     TArray<FString> ParamDecls;
     bool First = true;
@@ -928,7 +958,7 @@ bool FTypeScriptDeclarationGenerator::GenFunction(
                     DefaultValuePtr = MetaMap->Find(MetadataCppDefaultValueKey);
                 }
 
-                TmpBuf << SafeParamName(Property->GetName());
+                TmpBuf << DeDup(SafeParamName(Property->GetName()));
                 if (DefaultValuePtr)
                 {
                     TmpBuf << "?";
@@ -1198,7 +1228,14 @@ void FTypeScriptDeclarationGenerator::GenClass(UClass* Class)
         AddedProperties.Add(Property->GetName());
 
         FStringBuffer TmpBuff;
-        TmpBuff << SafeFieldName(Property->GetName()) << ": ";
+        FString SN = Property->GetName();
+#ifdef PUERTS_WITH_EDITOR_SUFFIX
+        if (Property->IsEditorOnlyProperty())
+        {
+            SN += EditorOnlyPropertySuffix;
+        }
+#endif
+        TmpBuff << SafeFieldName(SN) << ": ";
         TArray<UObject*> RefTypesTmp;
         if (!GenTypeDecl(TmpBuff, Property, RefTypesTmp))
         {
@@ -1220,6 +1257,24 @@ void FTypeScriptDeclarationGenerator::GenClass(UClass* Class)
             continue;
         }
         TryToAddOverload(Outputs, FunctionIt->GetName(), (FunctionIt->FunctionFlags & FUNC_Static) != 0, TmpBuff.Buffer);
+    }
+
+    for (int i = 0; i < Class->Interfaces.Num(); i++)
+    {
+        for (TFieldIterator<UFunction> FunctionIt(Class->Interfaces[i].Class, EFieldIteratorFlags::IncludeSuper); FunctionIt;
+             ++FunctionIt)
+        {
+            FStringBuffer TmpBuff;
+            if (!GenFunction(TmpBuff, *FunctionIt))
+            {
+                continue;
+            }
+            if (FunctionIt->GetName().Contains("ExecuteUbergraph"))
+            {
+                continue;
+            }
+            TryToAddOverload(Outputs, FunctionIt->GetName(), (FunctionIt->FunctionFlags & FUNC_Static) != 0, TmpBuff.Buffer);
+        }
     }
 
     GatherExtensions(Class, StringBuffer);

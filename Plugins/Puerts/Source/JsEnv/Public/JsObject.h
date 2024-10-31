@@ -8,15 +8,16 @@
 
 #pragma once
 
-#pragma warning(push, 0)
-#include "v8.h"
-#pragma warning(pop)
-
 #include "NamespaceDef.h"
 
 #include "Binding.hpp"
 #include "JSLogger.h"
 #include "V8Utils.h"
+
+namespace PUERTS_NAMESPACE
+{
+class FJsObjectPropertyTranslator;
+}
 
 #include "CoreMinimal.h"
 #include "JsObject.generated.h"
@@ -36,9 +37,18 @@ public:
         if (InOther.JsEnvLifeCycleTracker.expired())
         {
             JsEnvLifeCycleTracker = InOther.JsEnvLifeCycleTracker;
+            if (!JsEnvLifeCycleTracker.expired())
+            {
+                GObject.Reset();
+                GContext.Reset();
+                Isolate = nullptr;
+            }
             return;
         }
         Isolate = InOther.Isolate;
+#ifdef THREAD_SAFE
+        v8::Locker Locker(Isolate);
+#endif
         GContext.Reset(Isolate, InOther.GContext.Get(Isolate));
         GObject.Reset(Isolate, InOther.GObject.Get(Isolate));
         JsEnvLifeCycleTracker = PUERTS_NAMESPACE::DataTransfer::GetJsEnvLifeCycleTracker(Isolate);
@@ -52,18 +62,37 @@ public:
 
     ~FJsObject()
     {
+#ifdef THREAD_SAFE
+        v8::Locker Locker(Isolate);
+#endif
         if (JsEnvLifeCycleTracker.expired())
         {
+#if V8_MAJOR_VERSION < 11
             GObject.Empty();
             GContext.Empty();
+#endif
+        }
+        else
+        {
+            GObject.Reset();
+            GContext.Reset();
         }
     }
 
     FJsObject& operator=(const FJsObject& InOther)
     {
+#ifdef THREAD_SAFE
+        v8::Locker Locker(Isolate);
+#endif
         if (InOther.JsEnvLifeCycleTracker.expired())
         {
             JsEnvLifeCycleTracker = InOther.JsEnvLifeCycleTracker;
+            if (!JsEnvLifeCycleTracker.expired())
+            {
+                GObject.Reset();
+                GContext.Reset();
+                Isolate = nullptr;
+            }
             return *this;
         }
         Isolate = InOther.Isolate;
@@ -81,6 +110,9 @@ public:
             UE_LOG(Puerts, Error, TEXT("JsEnv associated had release!"));
             return {};
         }
+#ifdef THREAD_SAFE
+        v8::Locker Locker(Isolate);
+#endif
         v8::Isolate::Scope IsolateScope(Isolate);
         v8::HandleScope HandleScope(Isolate);
         auto Context = GContext.Get(Isolate);
@@ -104,6 +136,9 @@ public:
             UE_LOG(Puerts, Error, TEXT("JsEnv associated had release!"));
             return;
         }
+#ifdef THREAD_SAFE
+        v8::Locker Locker(Isolate);
+#endif
         v8::Isolate::Scope IsolateScope(Isolate);
         v8::HandleScope HandleScope(Isolate);
         auto Context = GContext.Get(Isolate);
@@ -122,6 +157,9 @@ public:
             UE_LOG(Puerts, Error, TEXT("JsEnv associated had release!"));
             return;
         }
+#ifdef THREAD_SAFE
+        v8::Locker Locker(Isolate);
+#endif
         v8::Isolate::Scope IsolateScope(Isolate);
         v8::HandleScope HandleScope(Isolate);
         auto Context = GContext.Get(Isolate);
@@ -154,6 +192,9 @@ public:
             UE_LOG(Puerts, Error, TEXT("JsEnv associated had release!"));
             return {};
         }
+#ifdef THREAD_SAFE
+        v8::Locker Locker(Isolate);
+#endif
         v8::Isolate::Scope IsolateScope(Isolate);
         v8::HandleScope HandleScope(Isolate);
         auto Context = GContext.Get(Isolate);
@@ -184,6 +225,7 @@ public:
         return {};
     }
 
+private:
     FORCEINLINE v8::Local<v8::Object> GetJsObject() const
     {
         if (JsEnvLifeCycleTracker.expired())
@@ -201,7 +243,6 @@ public:
         }
     }
 
-private:
     template <typename... Args>
     FORCEINLINE auto InvokeHelper(v8::Local<v8::Context>& Context, v8::Local<v8::Object>& Object, Args... CppArgs) const
     {
@@ -216,11 +257,17 @@ private:
 
 private:
     v8::Isolate* Isolate;
+#if V8_MAJOR_VERSION >= 11
+    v8::Persistent<v8::Context> GContext;
+    v8::Persistent<v8::Object> GObject;
+#else
     v8::Global<v8::Context> GContext;
     v8::Global<v8::Object> GObject;
+#endif
     std::weak_ptr<int> JsEnvLifeCycleTracker;
 
     friend struct PUERTS_NAMESPACE::v8_impl::Converter<FJsObject>;
+    friend class PUERTS_NAMESPACE::FJsObjectPropertyTranslator;
 };
 
 namespace PUERTS_NAMESPACE
